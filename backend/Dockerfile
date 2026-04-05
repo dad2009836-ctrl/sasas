@@ -1,15 +1,17 @@
-FROM node:20-alpine
+FROM node:20-bullseye-slim
 
 WORKDIR /app
 
-COPY package*.json ./
+# Enable development mode
+ENV NODE_ENV development
 
+COPY package*.json ./
 RUN npm install
 
 COPY . .
 
+# Generate Prisma Client
 RUN npx prisma generate
-RUN npm run build
 
 EXPOSE 4000
 

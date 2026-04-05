@@ -1,4 +1,3 @@
-# Use a Node image that supports Playwright system dependencies
 FROM node:20-bullseye-slim
 
 # Install system dependencies for Playwright/Chromium
@@ -14,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxext6 \
     libxfixes3 \
-    librandr2 \
+    libxrandr2 \
     libgbm1 \
     libpango-1.0-0 \
     libcairo2 \
@@ -24,9 +23,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY package*.json ./
+# Enable development mode
+ENV NODE_ENV development
 
-# Install dependencies including Playwright
+COPY package*.json ./
 RUN npm install
 
 # Install Playwright browsers (Chromium)
@@ -37,7 +37,4 @@ COPY . .
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Build step if using TypeScript
-RUN npm run build
-
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "dev"]

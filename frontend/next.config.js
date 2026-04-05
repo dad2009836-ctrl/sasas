@@ -2,6 +2,7 @@
 const nextConfig = {
     output: 'standalone',
     reactStrictMode: true,
+    optimizeFonts: false,
     // swcMinify is enabled by default in Next.js 13+ and removed in Next.js 15+
 }
 
