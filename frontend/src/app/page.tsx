@@ -4,17 +4,18 @@ import { io } from 'socket.io-client';
 import {
     LayoutDashboard,
     Users,
-    Send,
-    Settings,
-    ShieldCheck,
     Activity,
     Instagram,
     Terminal,
-    Eye,
     Monitor,
     Plus,
     Play,
-    X
+    X,
+    Server,
+    WifiOff,
+    Camera,
+    RefreshCw,
+    Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -29,7 +30,7 @@ interface Account {
 
 export default function Dashboard() {
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const [logs, setLogs] = useState<{ username: string, message: string }[]>([]);
+    const [logs, setLogs] = useState<{ username: string, message: string, timestamp?: Date }[]>([]);
     const [screenshots, setScreenshots] = useState<Record<string, string>>({});
     const [activeAccount, setActiveAccount] = useState('');
     const [viewMode, setViewMode] = useState<'SINGLE' | 'GRID'>('SINGLE');
@@ -41,7 +42,10 @@ export default function Dashboard() {
     useEffect(() => {
         fetchAccounts();
         const socket = io('http://localhost:4000');
-        socket.on('ui_log', (data) => setLogs((prev) => [data, ...prev].slice(0, 50)));
+        socket.on('ui_log', (data) => setLogs((prev) => [
+            {...data, timestamp: new Date()}, 
+            ...prev
+        ].slice(0, 100)));
         socket.on('ui_screenshot', (data) => setScreenshots((prev) => ({ ...prev, [data.username]: `data:image/jpeg;base64,${data.image}` })));
         return () => { socket.disconnect(); };
     }, []);
@@ -52,10 +56,12 @@ export default function Dashboard() {
             const data = await res.json();
             setAccounts(data);
             if (data.length > 0 && !activeAccount) setActiveAccount(data[0].username);
-        } catch (e) { }
+        } catch (e) {
+            console.error("Failed to fetch accounts", e);
+        }
     };
 
-    const handleAddAccount = async (e: any) => {
+    const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault();
         await fetch('http://localhost:4000/api/accounts', {
             method: 'POST',
@@ -67,6 +73,7 @@ export default function Dashboard() {
             })
         });
         setShowAddModal(false);
+        setNewAcc({ username: '', password: '', proxyHost: '', proxyPort: '' });
         fetchAccounts();
     };
 
@@ -78,87 +85,239 @@ export default function Dashboard() {
         });
     };
 
+    const activeAccObj = accounts.find(a => a.username === activeAccount);
+
     return (
-        <div className="flex h-screen bg-[#050505] text-white font-sans selection:bg-violet-500/30 overflow-hidden">
+        <div className="flex h-screen bg-[#030303] text-white font-sans selection:bg-violet-500/30 overflow-hidden font-light">
+            {/* Ambient Background Glows */}
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-[150px] pointer-events-none" />
+
             {/* Sidebar */}
-            <aside className="w-20 border-r border-white/5 flex flex-col items-center py-8 gap-10 bg-[#080808] z-50 text-white/20">
-                <div className="p-3 bg-gradient-to-tr from-violet-600 to-fuchsia-600 rounded-xl text-white shadow-lg shadow-violet-600/20">
-                    <Instagram size={24} />
-                </div>
-                <nav className="flex flex-col gap-8 items-center">
-                    <SidebarIcon icon={<LayoutDashboard size={20} />} active={viewMode === 'SINGLE'} onClick={() => setViewMode('SINGLE')} />
-                    <SidebarIcon icon={<Monitor size={20} />} active={viewMode === 'GRID'} onClick={() => setViewMode('GRID')} />
-                    <SidebarIcon icon={<Users size={20} />} />
-                    <Plus size={24} className="cursor-pointer hover:text-white transition-colors mt-4" onClick={() => setShowAddModal(true)} />
+            <aside className="w-20 lg:w-24 border-r border-white/5 flex flex-col items-center py-8 gap-8 bg-black/40 backdrop-blur-xl z-50">
+                <motion.div 
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-3 bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 rounded-2xl shadow-[0_0_30px_rgba(139,92,246,0.3)] text-white cursor-pointer"
+                >
+                    <Instagram size={28} strokeWidth={2.5} />
+                </motion.div>
+
+                <div className="w-8 h-[1px] bg-white/10 my-2" />
+
+                <nav className="flex flex-col gap-6 items-center w-full relative">
+                    <SidebarIcon icon={<LayoutDashboard size={22} />} active={viewMode === 'SINGLE'} onClick={() => setViewMode('SINGLE')} />
+                    <SidebarIcon icon={<Monitor size={22} />} active={viewMode === 'GRID'} onClick={() => setViewMode('GRID')} />
+                    <SidebarIcon icon={<Server size={22} />} />
+                    <SidebarIcon icon={<Users size={22} />} />
+                    
+                    <div className="w-8 h-[1px] bg-white/10 my-2" />
+
+                    <motion.button 
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-colors group mt-2" 
+                        onClick={() => setShowAddModal(true)}
+                        title="Add Account"
+                    >
+                        <Plus size={24} className="text-white/50 group-hover:text-white transition-colors" />
+                    </motion.button>
                 </nav>
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col overflow-hidden relative">
-                <header className="h-20 border-b border-white/5 flex items-center justify-between px-10 relative z-10 bg-[#050505]/50 backdrop-blur-xl">
-                    <h2 className="text-xl font-bold tracking-tight">Duupflow Dashboard</h2>
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="bg-violet-600 hover:bg-violet-500 px-6 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all"
-                    >
-                        <Plus size={16} /> Add Account
-                    </button>
+            <main className="flex-1 flex flex-col overflow-hidden relative z-10">
+                
+                {/* Header */}
+                <header className="h-24 border-b border-white/5 flex items-center justify-between px-10 bg-black/20 backdrop-blur-md z-20">
+                    <div>
+                        <h2 className="text-2xl font-semibold bg-gradient-to-r from-white to-white/50 bg-clip-text text-transparent tracking-tight">
+                            Duupflow <span className="font-light">Nexus</span>
+                        </h2>
+                        <p className="text-xs text-white/40 mt-1 flex items-center gap-2 uppercase tracking-widest">
+                            <Activity size={10} className="text-emerald-400" /> System Online • {accounts.length} Node(s)
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-sm font-medium text-white/70 hover:text-white">
+                            <RefreshCw size={16} /> Sync
+                        </button>
+                        <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setShowAddModal(true)}
+                            className="bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all"
+                        >
+                            <Plus size={18} /> New Instance
+                        </motion.button>
+                    </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto p-10 space-y-10 relative z-10">
-
+                {/* Dashboard Area */}
+                <div className="flex-1 overflow-y-auto p-8 lg:p-10 relative" style={{ scrollbarWidth: 'none' }}>
+                    
                     {viewMode === 'SINGLE' ? (
-                        <>
-                            {/* Account Grid */}
-                            <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {accounts.map((acc) => (
-                                    <AccountCard
-                                        key={acc.id}
-                                        account={acc}
-                                        active={activeAccount === acc.username}
-                                        onClick={() => setActiveAccount(acc.username)}
-                                        onLaunch={() => launchAction(acc.id, 'warmUp')}
-                                    />
-                                ))}
+                        <div className="max-w-[1600px] mx-auto space-y-8">
+                            
+                            {/* Stats Overview */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+                                <StatCard title="Active Instances" value={accounts.filter(a => a.status === 'RUNNING' || a.status === 'CONNECTED').length.toString()} icon={<Server size={18} />} color="text-violet-400" />
+                                <StatCard title="Total Accounts" value={accounts.length.toString()} icon={<Users size={18} />} color="text-fuchsia-400" />
+                                <StatCard title="Actions Performed" value="1,204" icon={<Activity size={18} />} color="text-emerald-400" />
+                                <StatCard title="System Health" value="98%" icon={<Shield size={18} />} color="text-blue-400" />
+                            </div>
+
+                            <div className="flex items-center justify-between mb-4 mt-8">
+                                <h3 className="text-lg font-medium text-white/90">Managed Nodes</h3>
+                            </div>
+
+                            {/* Account Grid List */}
+                            <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                                <AnimatePresence>
+                                    {accounts.map((acc, i) => (
+                                        <AccountCard
+                                            key={acc.id}
+                                            account={acc}
+                                            active={activeAccount === acc.username}
+                                            onClick={() => setActiveAccount(acc.username)}
+                                            onLaunch={() => launchAction(acc.id, 'warmUp')}
+                                            index={i}
+                                        />
+                                    ))}
+                                </AnimatePresence>
                             </section>
 
-                            {/* Monitor */}
-                            <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-2 bg-[#080808] border border-white/10 rounded-3xl overflow-hidden aspect-video bg-black relative">
-                                    {screenshots[activeAccount] ? (
-                                        <img src={screenshots[activeAccount]} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center opacity-20 gap-4">
-                                            <Activity size={48} className="animate-pulse" />
-                                            <span className="text-sm">Select an active account to see the live feed</span>
+                            <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent my-10" />
+
+                            {/* Dual Pane: Monitor & Console */}
+                            <section className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-10">
+                                
+                                {/* Video Feed */}
+                                <div className="xl:col-span-2 flex flex-col gap-4">
+                                    <h3 className="text-sm font-medium text-white/70 flex items-center gap-2 uppercase tracking-widest ml-2">
+                                        <Camera size={16} /> Live Screencast
+                                        {activeAccObj && <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-400 text-[10px] ml-2 font-bold">{activeAccount}</span>}
+                                    </h3>
+                                    
+                                    <div className="bg-[#050505] border border-white/10 rounded-2xl overflow-hidden aspect-video relative group shadow-2xl">
+                                        {/* Status overlay */}
+                                        <div className="absolute top-4 left-4 z-10 flex gap-2">
+                                            {activeAccObj?.status === 'RUNNING' && (
+                                                <div className="px-3 py-1 bg-emerald-500/20 backdrop-blur-md text-emerald-400 border border-emerald-500/20 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-lg">
+                                                    <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+                                                    Recording
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                                <div className="bg-[#080808] border border-white/5 rounded-3xl overflow-hidden flex flex-col h-[400px]">
-                                    <div className="p-4 border-b border-white/5 font-bold text-xs uppercase tracking-widest text-white/30">Live Console</div>
-                                    <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] space-y-2">
-                                        {logs.filter(l => l.username === activeAccount).map((l, i) => (
-                                            <div key={i} className="text-white/70 tracking-tight leading-relaxed">
-                                                <span className="text-violet-500 mr-2">»</span> {l.message}
+
+                                        {screenshots[activeAccount] ? (
+                                            <motion.img 
+                                                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                                src={screenshots[activeAccount]} 
+                                                className="w-full h-full object-cover transition-transform duration-700" 
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center gap-6 opacity-30 select-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+                                                <div className="relative">
+                                                    <Monitor size={64} className="text-white/20" />
+                                                    <div className="absolute inset-0 flex items-center justify-center">
+                                                        <Activity size={24} className="text-white/40 animate-pulse" />
+                                                    </div>
+                                                </div>
+                                                <span className="text-sm font-mono tracking-widest uppercase">No feed available</span>
                                             </div>
-                                        ))}
+                                        )}
+                                        <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-2xl pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                {/* Live Terminal Console */}
+                                <div className="flex flex-col gap-4 h-full xl:max-h-[600px]">
+                                    <h3 className="text-sm font-medium text-white/70 flex items-center gap-2 uppercase tracking-widest ml-2">
+                                        <Terminal size={16} /> Action Logs
+                                    </h3>
+                                    
+                                    <div className="bg-[#0A0A0B] border border-white/10 rounded-2xl overflow-hidden flex flex-col flex-1 shadow-2xl relative">
+                                        {/* Fake macOS style window buttons */}
+                                        <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02] flex items-center gap-2">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
+                                            <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                                            <span className="ml-4 text-[10px] font-mono text-white/30 truncate">root@nexus-node-01</span>
+                                        </div>
+                                        
+                                        <div className="flex-1 overflow-y-auto p-5 font-mono text-xs space-y-2.5" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+                                            {logs.filter(l => l.username === activeAccount).length === 0 ? (
+                                                <div className="text-white/20 italic">Waiting for events...</div>
+                                            ) : (
+                                                logs.filter(l => l.username === activeAccount).map((l, i) => (
+                                                    <motion.div 
+                                                        initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }}
+                                                        key={i} 
+                                                        className="text-white/60 tracking-tight leading-relaxed break-words"
+                                                    >
+                                                        <span className="text-white/30 mr-2">[{l.timestamp?.toLocaleTimeString([], {hour12: false}) || '00:00:00'}]</span>
+                                                        <span className={getMessageColor(l.message)}>{l.message}</span>
+                                                    </motion.div>
+                                                ))
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </section>
-                        </>
+                        </div>
                     ) : (
                         /* Multi-Spy Grid */
-                        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
-                            {accounts.map(acc => (
-                                <div key={acc.id} className="bg-[#080808] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                                    <div className="p-3 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
-                                        <span className="text-[10px] font-bold">@{acc.username}</span>
-                                    </div>
-                                    <div className="aspect-video bg-black flex items-center justify-center">
-                                        {screenshots[acc.username] ? <img src={screenshots[acc.username]} className="w-full h-full object-cover" /> : <Monitor size={24} className="opacity-10" />}
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="max-w-[1800px] mx-auto space-y-6">
+                            <div className="flex items-center gap-3 mb-8">
+                                <LayoutDashboard className="text-violet-400" />
+                                <h3 className="text-xl font-medium text-white">Global Monitoring Matrix</h3>
+                            </div>
+                            
+                            <motion.div 
+                                initial="hidden" animate="show"
+                                variants={{ show: { transition: { staggerChildren: 0.1 } } }}
+                                className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6"
+                            >
+                                {accounts.map(acc => (
+                                    <motion.div 
+                                        variants={{
+                                            hidden: { opacity: 0, y: 20 },
+                                            show: { opacity: 1, y: 0 }
+                                        }}
+                                        key={acc.id} 
+                                        className="bg-[#0A0A0B] border border-white/5 hover:border-white/20 transition-all rounded-2xl overflow-hidden shadow-xl group cursor-pointer"
+                                        onClick={() => { setActiveAccount(acc.username); setViewMode('SINGLE'); }}
+                                    >
+                                        <div className="px-4 py-3 flex justify-between items-center bg-white/[0.02]">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${getStatusColor(acc.status).dot}`} />
+                                                <span className="text-xs font-semibold text-white/80">@{acc.username}</span>
+                                            </div>
+                                            <span className="text-[10px] font-mono text-white/40 uppercase bg-white/5 px-2 py-0.5 rounded-full">
+                                                {acc.status || 'OFFLINE'}
+                                            </span>
+                                        </div>
+                                        <div className="aspect-video bg-[#030303] flex items-center justify-center relative overflow-hidden">
+                                            {screenshots[acc.username] ? (
+                                                <img src={screenshots[acc.username]} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <WifiOff size={24} className="text-white/10" />
+                                                    <span className="text-xs text-white/20 font-mono">No signal</span>
+                                                </div>
+                                            )}
+                                            {/* Hover indicator */}
+                                            <div className="absolute inset-0 bg-violet-600/0 group-hover:bg-violet-600/10 transition-colors flex items-center justify-center">
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-xs font-medium flex items-center gap-2">
+                                                    <Monitor size={14}/> Enter Console
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </motion.div>
                         </div>
                     )}
                 </div>
@@ -167,26 +326,57 @@ export default function Dashboard() {
             {/* Add Account Modal */}
             <AnimatePresence>
                 {showAddModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0"
+                            onClick={() => setShowAddModal(false)}
+                        />
                         <motion.form
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                             onSubmit={handleAddAccount}
-                            className="w-full max-w-md bg-[#0c0c0c] border border-white/10 rounded-3xl p-8 relative shadow-2xl"
+                            className="w-full max-w-lg bg-[#0f0f11] border border-white/10 rounded-3xl p-8 relative shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10"
                         >
-                            <button onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 text-white/20 hover:text-white"><X size={20} /></button>
-                            <h3 className="text-2xl font-bold mb-6">Link New Account</h3>
-                            <div className="space-y-4">
-                                <Input label="Username" value={newAcc.username} onChange={(v) => setNewAcc({ ...newAcc, username: v })} />
-                                <Input label="Password" type="password" value={newAcc.password} onChange={(v) => setNewAcc({ ...newAcc, password: v })} />
+                            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 rounded-3xl pointer-events-none" />
+                            
+                            <button type="button" onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                                <X size={16} />
+                            </button>
+                            
+                            <h3 className="text-2xl font-semibold mb-2">Deploy Instance</h3>
+                            <p className="text-sm text-white/40 mb-8">Link a new Instagram account to the orchestration network.</p>
+                            
+                            <div className="space-y-5">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <Input label="Proxy Host" value={newAcc.proxyHost} onChange={(v) => setNewAcc({ ...newAcc, proxyHost: v })} />
-                                    <Input label="Proxy Port" value={newAcc.proxyPort} onChange={(v) => setNewAcc({ ...newAcc, proxyPort: v })} />
+                                    <Input label="Username" icon={<Users size={16}/>} value={newAcc.username} onChange={(v: string) => setNewAcc({ ...newAcc, username: v })} />
+                                    <Input label="Password" type="password" value={newAcc.password} onChange={(v: string) => setNewAcc({ ...newAcc, password: v })} />
                                 </div>
-                                <button type="submit" className="w-full bg-violet-600 py-4 rounded-2xl font-bold mt-6 hover:bg-violet-500 transition-colors shadow-lg shadow-violet-600/20">
-                                    Connect Node
-                                </button>
+                                
+                                <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4">
+                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-white/50">
+                                        <Server size={14} /> Network Configuration
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="col-span-2">
+                                            <Input label="Proxy Host" value={newAcc.proxyHost} onChange={(v: string) => setNewAcc({ ...newAcc, proxyHost: v })} placeholder="192.168.1.1" />
+                                        </div>
+                                        <Input label="Port" value={newAcc.proxyPort} onChange={(v: string) => setNewAcc({ ...newAcc, proxyPort: v })} placeholder="8080" />
+                                    </div>
+                                </div>
+
+                                <motion.button 
+                                    whileHover={{ scale: 1.01 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="submit" 
+                                    className="w-full bg-white text-black py-4 rounded-xl font-semibold mt-4 hover:bg-white/90 transition-colors shadow-lg flex items-center justify-center gap-2"
+                                >
+                                    <Play size={18} fill="currentColor" /> Initialize Node
+                                </motion.button>
                             </div>
                         </motion.form>
                     </div>
@@ -197,39 +387,126 @@ export default function Dashboard() {
     );
 }
 
-function SidebarIcon({ icon, active, onClick }: { icon: any, active?: boolean, onClick?: () => void }) {
-    return (
-        <div onClick={onClick} className={`p-4 rounded-xl cursor-pointer transition-all ${active ? 'text-violet-400 bg-violet-400/10' : 'hover:text-white hover:bg-white/5'}`}>{icon}</div>
-    );
+// --- Helper Components & Functions ---
+
+// Parses message for colorizing logs
+function getMessageColor(msg: string) {
+    const lower = msg.toLowerCase();
+    if (lower.includes('error') || lower.includes('fail')) return 'text-rose-400';
+    if (lower.includes('success') || lower.includes('connected') || lower.includes('done')) return 'text-emerald-400';
+    if (lower.includes('warning') || lower.includes('warn')) return 'text-amber-400';
+    return 'text-white/70';
 }
 
-function AccountCard({ account, active, onClick, onLaunch }: { account: Account, active: boolean, onClick: () => void, onLaunch: () => void }) {
+function getStatusColor(status: string) {
+    const lower = status?.toLowerCase() || '';
+    if (['running', 'online', 'active', 'connected', 'success'].includes(lower)) return { border: 'border-emerald-500/30', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
+    if (['error', 'banned', 'offline', 'failed'].includes(lower)) return { border: 'border-rose-500/30', bg: 'bg-rose-500/10', dot: 'bg-rose-400' };
+    if (['warming', 'warm up', 'pending', 'starting'].includes(lower)) return { border: 'border-amber-500/30', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
+    return { border: 'border-white/10', bg: 'bg-white/5', dot: 'bg-white/30' }; // default
+}
+
+function StatCard({ title, value, icon, color }: { title: string, value: string, icon: any, color: string }) {
     return (
-        <div onClick={onClick} className={`p-6 rounded-3xl border transition-all cursor-pointer ${active ? 'bg-violet-600/5 border-violet-500/50' : 'bg-[#080808] border-white/5'}`}>
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-violet-600/20 text-violet-400 flex items-center justify-center font-bold">@</div>
-                    <h4 className="font-bold text-sm">@{account.username}</h4>
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); onLaunch(); }} className="p-2 bg-green-500/10 text-green-500 rounded-lg hover:bg-green-500 hover:text-white transition-all"><Play size={14} /></button>
+        <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:bg-white/[0.04] transition-colors">
+            <div className={`p-3 rounded-xl bg-white/[0.03] ${color}`}>
+                {icon}
             </div>
-            <div className="space-y-2">
-                <div className="flex justify-between text-[10px] uppercase font-bold text-white/30"><span>Warm Up</span><span>{account.status}</span></div>
-                <div className="h-1 bg-white/5 rounded-full overflow-hidden leading-none"><div className="h-full bg-violet-600 w-1/2"></div></div>
+            <div>
+                <p className="text-xs uppercase tracking-widest text-white/40 font-semibold mb-1">{title}</p>
+                <p className="text-2xl font-bold text-white/90">{value}</p>
             </div>
         </div>
     );
 }
 
-function Input({ label, value, onChange, type = "text" }: any) {
+function SidebarIcon({ icon, active, onClick }: { icon: any, active?: boolean, onClick?: () => void }) {
     return (
-        <div className="space-y-2">
-            <label className="text-[10px] uppercase font-black tracking-widest text-white/30 ml-2">{label}</label>
-            <input
-                type={type} value={value} onChange={(e) => onChange(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 focus:border-violet-500/50 outline-none p-4 rounded-2xl text-sm transition-all"
-                placeholder={`Enter ${label.toLowerCase()}...`}
-            />
+        <div className="relative group w-full flex justify-center">
+            <div 
+                onClick={onClick} 
+                className={`p-3 rounded-xl cursor-pointer transition-all duration-300 relative z-10 w-12 flex justify-center 
+                ${active ? 'text-white bg-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)]' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+            >
+                {icon}
+            </div>
+            {active && (
+                <motion.div layoutId="sidebar-active" className="absolute left-1/2 -translate-x-1/2 w-12 top-0 bottom-0 bg-white/5 rounded-xl -z-10" />
+            )}
+        </div>
+    );
+}
+
+function AccountCard({ account, active, onClick, onLaunch, index }: { account: Account, active: boolean, onClick: () => void, onLaunch: () => void, index: number }) {
+    const statusTheme = getStatusColor(account.status);
+    
+    return (
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            onClick={onClick} 
+            className={`p-5 rounded-2xl border transition-all duration-300 cursor-pointer relative overflow-hidden group flex flex-col justify-between
+            ${active ? 'bg-white/[0.04] border-violet-500/50 shadow-[0_4px_30px_rgba(139,92,246,0.1)]' : 'bg-[#0A0A0B] hover:bg-white/[0.02] border-white/5'}`}
+        >
+            {/* Active glow inside card */}
+            {active && <div className="absolute -top-10 -right-10 w-32 h-32 bg-violet-500/20 rounded-full blur-[40px] pointer-events-none" />}
+
+            <div className="flex items-center justify-between gap-4 mb-5 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-600/20 to-fuchsia-600/20 flex items-center justify-center border border-white/5 group-hover:scale-105 transition-transform shrink-0">
+                    <Instagram size={20} className="text-violet-300" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-white/90 text-[15px] truncate max-w-full">@{account.username}</h4>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${statusTheme.dot}`} />
+                        <span className={`text-[10px] uppercase font-mono tracking-wider ${statusTheme.dot.replace('bg-', 'text-')}`}>{account.status || 'IDLE'}</span>
+                    </div>
+                </div>
+                
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onLaunch(); }} 
+                    className="p-2.5 bg-white/5 text-white/60 rounded-xl hover:bg-white hover:text-black transition-all shadow-sm shrink-0"
+                    title="Run Action"
+                >
+                    <Play size={16} fill="currentColor" />
+                </button>
+            </div>
+
+            <div className="space-y-2 relative z-10">
+                <div className="flex justify-between text-[10px] font-semibold tracking-widest text-white/30 uppercase">
+                    <span>Task Progress</span>
+                    <span>{account.progress || 0}%</span>
+                </div>
+                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${account.progress || 0}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className={`h-full rounded-full ${statusTheme.dot === 'bg-white/30' ? 'bg-violet-500' : statusTheme.dot}`} 
+                    />
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+function Input({ label, value, onChange, type = "text", icon, placeholder }: { label: string, value: string, onChange: (v: string) => void, type?: string, icon?: any, placeholder?: string }) {
+    return (
+        <div className="space-y-1.5">
+            <label className="text-[10px] uppercase font-semibold tracking-widest text-white/40 ml-1">
+                {label}
+            </label>
+            <div className="relative">
+                {icon && <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30">{icon}</div>}
+                <input
+                    type={type} 
+                    value={value} 
+                    onChange={(e) => onChange(e.target.value)}
+                    className={`w-full bg-black/40 border border-white/10 focus:border-violet-500/50 outline-none ${icon ? 'pl-10' : 'pl-4'} pr-4 py-3 rounded-xl text-sm transition-all text-white/90 focus:bg-white/[0.02] placeholder:text-white/20`}
+                    placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
+                />
+            </div>
         </div>
     );
 }
