@@ -136,6 +136,9 @@ export default function Dashboard() {
     const [stats, setStats] = useState<any>(null);
     const [showPostModal, setShowPostModal] = useState(false);
     const [newPost, setNewPost] = useState({ content: '', scheduleDate: '', scheduleTime: '' });
+    const [postMediaFiles, setPostMediaFiles] = useState<File[]>([]);
+    const [postMediaPreviews, setPostMediaPreviews] = useState<string[]>([]);
+    const [postUploading, setPostUploading] = useState(false);
 
     // New Account Form State
     const [newAcc, setNewAcc] = useState({ 
@@ -230,6 +233,44 @@ export default function Dashboard() {
         }
     };
 
+    const handlePostMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length + postMediaFiles.length > 4) {
+            alert('Maximum 4 images par tweet');
+            return;
+        }
+        for (const file of files) {
+            if (file.size > 10 * 1024 * 1024) {
+                alert(`Le fichier ${file.name} dépasse 10MB`);
+                return;
+            }
+        }
+        setPostMediaFiles(prev => [...prev, ...files]);
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onloadend = () => setPostMediaPreviews(prev => [...prev, reader.result as string]);
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const removePostMedia = (index: number) => {
+        setPostMediaFiles(prev => prev.filter((_, i) => i !== index));
+        setPostMediaPreviews(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const uploadPostMedia = async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('type', 'post');
+        const response = await fetch('http://localhost:4000/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+        if (!response.ok) throw new Error('Upload failed');
+        const data = await response.json();
+        return data.url;
+    };
+
     const handleCreatePost = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!activeAccount || !newPost.content) return;
@@ -241,25 +282,38 @@ export default function Dashboard() {
             ? `${newPost.scheduleDate}T${newPost.scheduleTime}:00Z`
             : undefined;
 
+        setPostUploading(true);
         try {
+            // Upload media files first
+            const mediaUrls: string[] = [];
+            for (const file of postMediaFiles) {
+                const url = await uploadPostMedia(file);
+                mediaUrls.push(url);
+            }
+
             const res = await fetch('http://localhost:4000/api/twitter-posts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     accountId: account.id,
                     content: newPost.content,
+                    mediaUrls,
                     scheduleDate
                 })
             });
 
             if (res.ok) {
                 setNewPost({ content: '', scheduleDate: '', scheduleTime: '' });
+                setPostMediaFiles([]);
+                setPostMediaPreviews([]);
                 setShowPostModal(false);
                 fetchPosts(account.id);
                 alert('✅ Post créé avec succès!');
             }
         } catch (err) {
             alert('❌ Erreur lors de la création du post');
+        } finally {
+            setPostUploading(false);
         }
     };
 
@@ -1206,6 +1260,38 @@ export default function Dashboard() {
                                         <p className="text-[10px] text-white/30 mt-1">{newPost.content.length}/280 characters</p>
                                     </div>
 
+                                    {/* Media Upload */}
+                                    <div>
+                                        <label className="block text-xs font-medium text-white/60 mb-2">Photos (max 4)</label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {postMediaPreviews.map((preview, idx) => (
+                                                <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border border-white/10">
+                                                    <img src={preview} alt={`media-${idx}`} className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePostMedia(idx)}
+                                                        className="absolute top-0.5 right-0.5 p-0.5 bg-black/70 rounded-full text-white/80 hover:text-white"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {postMediaFiles.length < 4 && (
+                                                <label className="w-20 h-20 rounded-lg border-2 border-dashed border-white/20 hover:border-violet-500/50 flex items-center justify-center cursor-pointer transition-colors">
+                                                    <Camera size={20} className="text-white/40" />
+                                                    <input
+                                                        type="file"
+                                                        accept="image/jpeg,image/png,image/gif,image/webp"
+                                                        multiple
+                                                        onChange={handlePostMediaChange}
+                                                        className="hidden"
+                                                    />
+                                                </label>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-white/30">JPEG, PNG, GIF, WEBP - max 10MB par image</p>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-medium text-white/60 mb-2">Date (Optional)</label>
@@ -1231,10 +1317,11 @@ export default function Dashboard() {
                                         whileHover={{ scale: 1.01 }}
                                         whileTap={{ scale: 0.98 }}
                                         type="submit" 
-                                        className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white py-4 rounded-xl font-semibold mt-4 hover:from-violet-600 hover:to-fuchsia-600 transition-all shadow-lg flex items-center justify-center gap-2"
+                                        disabled={postUploading}
+                                        className="w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white py-4 rounded-xl font-semibold mt-4 hover:from-violet-600 hover:to-fuchsia-600 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <Send size={18} />
-                                        {newPost.scheduleDate && newPost.scheduleTime ? 'Schedule Post' : 'Post Now'}
+                                        {postUploading ? 'Upload en cours...' : (newPost.scheduleDate && newPost.scheduleTime ? 'Schedule Post' : 'Post Now')}
                                     </motion.button>
                                 </div>
                             </div>
