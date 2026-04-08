@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import {
     FolderTree,
     FileText,
@@ -120,9 +121,17 @@ interface Notification {
 
 interface NewFeaturesProps {
     accounts: Account[];
+    selectedAccount?: Account | null;
+    profileForm?: {
+        profileImage: string;
+        bio: string;
+        bannerImage: string;
+        niche: string;
+    };
+    onProfileFormChange?: (form: any) => void;
 }
 
-export default function NewFeatures({ accounts }: NewFeaturesProps) {
+export default function NewFeatures({ accounts, selectedAccount: externalSelectedAccount, profileForm: externalProfileForm, onProfileFormChange }: NewFeaturesProps) {
     const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'comments' | 'notifications' | 'stats'>('groups');
     
     // Data states
@@ -291,6 +300,52 @@ export default function NewFeatures({ accounts }: NewFeaturesProps) {
         const interval = setInterval(fetchData, 30000); // Refresh every 30s
         return () => clearInterval(interval);
     }, [activeTab]);
+
+    // Real-time notifications
+    useEffect(() => {
+        const socket = io('http://localhost:4000');
+        
+        socket.on('notification', (notification) => {
+            console.log('🔔 Notification reçue:', notification);
+            
+            // Show browser notification if enabled
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(notification.title, {
+                    body: notification.message,
+                    icon: notification.urgent ? '/warning-icon.png' : '/notification-icon.png',
+                    tag: notification.timestamp
+                });
+            }
+            
+            // Refresh notifications list
+            fetchData();
+            
+            // Show toast/alert for urgent notifications
+            if (notification.urgent) {
+                alert(`⚠️ ${notification.title}\n${notification.message}`);
+            }
+        });
+        
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+    // Request notification permission on mount
+    useEffect(() => {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    // Open profile modal when external selectedAccount is provided
+    useEffect(() => {
+        if (externalSelectedAccount && externalProfileForm) {
+            setSelectedAccount(externalSelectedAccount);
+            setProfileForm(externalProfileForm);
+            setShowProfileModal(true);
+        }
+    }, [externalSelectedAccount, externalProfileForm]);
 
     const fetchData = async () => {
         try {

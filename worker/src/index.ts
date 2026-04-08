@@ -212,12 +212,43 @@ twitterWorker.on('active', (job) => {
     console.log(`🚀 Job ${job.id} started. Action: ${job.data.action}`);
 });
 
-twitterWorker.on('completed', (job) => {
+twitterWorker.on('completed', async (job) => {
     console.log(`🏁 Job ${job.id} finished successfully.`);
+    
+    // Emit notification to backend
+    try {
+        socket.emit('job_completed', {
+            jobId: job.id,
+            action: job.data.action,
+            username: job.data.username || 'Unknown',
+            accountId: job.data.accountId,
+            status: 'SUCCESS',
+            groupId: job.data.groupId,
+            groupName: job.data.groupName
+        });
+    } catch (error) {
+        console.error('Error emitting job_completed:', error);
+    }
 });
 
-twitterWorker.on('failed', (job, err) => {
+twitterWorker.on('failed', async (job, err) => {
     console.error(`❌ Job ${job?.id} failed with error:`, err.message);
+    
+    // Emit notification to backend
+    try {
+        socket.emit('job_failed', {
+            jobId: job?.id,
+            action: job?.data.action || 'Unknown',
+            username: job?.data.username || 'Unknown',
+            accountId: job?.data.accountId,
+            error: err.message,
+            status: 'FAILED',
+            groupId: job?.data.groupId,
+            groupName: job?.data.groupName
+        });
+    } catch (error) {
+        console.error('Error emitting job_failed:', error);
+    }
 });
 
 console.log('Worker Booted! Waiting for jobs...');

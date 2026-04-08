@@ -802,37 +802,43 @@ async function doAutoRetweet(page: Page, emitLog: (msg: string) => void, config:
 // ─── Auto Comment ─────────────────────────────────────────────────────────────
 
 const AUTO_COMMENTS = [
-    "🔥🔥🔥 So fucking hot!",
-    "Damn girl, you're sexy as hell 😍🍑",
-    "This is pure porn perfection 💦💯",
-    "I need this in my bed tonight 😈🔥",
-    "Your body is incredible, fucking goddess 🍑👅",
-    "I'm so hard right now 😍💦",
-    "Fuck, you're beautiful! Want you so bad 🔥🍆",
-    "This pussy is perfect babe 😍💦",
-    "I'd smash that all night long 😈🔥",
-    "Your tits are fucking amazing 🍒🔥",
-    "Need to fuck you right now 😍💦",
-    "So wet just looking at this 💦😈",
-    "Best porn I've seen today 🔥🍑",
-    "You're my new favorite pornstar 😍💋",
-    "Fuck me, you're hot! Link? 😈🔥",
-    "I'm cumming just watching this 💦😍",
-    "Your ass is fucking perfect 🍑🔥",
-    "Wanna eat that pussy so bad 😍👅",
-    "This is why I love OnlyFans 🔥💦",
-    "Subscribe to your OF right now! 😍💋",
-    "How much for a private show? 😈💦",
-    "Your content is so fucking addictive 🔥😍",
-    "I jerk off to this every night 💦😈",
-    "Best tits on Twitter! 🍒🔥",
-    "Need your OnlyFans link babe! 😍💋",
+    // Subtils et naturels - Style conversationnel
+    "Love this! 🔥",
+    "Amazing content as always ✨",
+    "You're killing it! 💯",
+    "This is gorgeous 😍",
+    "Stunning! Keep it up 👏",
+    "Wow, this is beautiful!",
+    "Incredible work! 🙌",
+    "So talented! 😊",
+    "This made my day! 💕",
+    "Absolutely love this vibe ✨",
+    "You always deliver! 🔥",
+    "This is so good! 👌",
+    "Can't stop looking at this 😍",
+    "Perfection! 💯",
+    "You're on fire today! 🔥",
+    "This is next level! 🚀",
+    "Absolutely incredible! ✨",
+    "Love the energy here! 💪",
+    "This is why I follow you! 😊",
+    "Keep creating amazing content! 🙌",
+    "You're so underrated! 💎",
+    "This deserves more attention! 👀",
+    "Obsessed with this! 😍",
+    "You never disappoint! 💯",
+    "Always bringing the best content! 🔥",
+    "This is art! ✨",
+    "Queen! 👑",
+    "Living for this content! 💕",
+    "You're goals! 🙌",
+    "This is everything! 😍",
 ];
 
 async function doAutoComment(page: Page, emitLog: (msg: string) => void, config: any) {
     const count = config?.count || randomRange(2, 4);
     const customComments = config?.comments || AUTO_COMMENTS;
-    emitLog(`💬 Auto-Comment : Publication de ${count} commentaires sur contenu adulte...`);
+    emitLog(`💬 Leaving ${count} natural comments on timeline...`);
 
     // Search for adult content creators
     const adultKeywords = ['onlyfans', 'nsfw', 'adult', 'model', '18+'];
@@ -860,7 +866,7 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
             if (await ta.count() === 0) continue;
 
             const comment = customComments[randomRange(0, customComments.length - 1)];
-            emitLog(`✍️ Commentaire adulte: "${comment}"`);
+            emitLog(`✍️ Commenting: "${comment}"`);
             await humanType(page, textArea, comment);
             await sleep(randomRange(1500, 3000));
 
@@ -868,7 +874,7 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
             if (await replyBtn.count() > 0) {
                 await humanClick(page, replyBtn);
                 commented++;
-                emitLog(`✅ Commentaire #${commented}/${count} publié sur contenu adulte.`);
+                emitLog(`✅ Comment #${commented}/${count} posted successfully.`);
             }
             await sleep(randomRange(3000, 8000));
         }
@@ -877,7 +883,7 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
         scrollAttempts++;
     }
 
-    emitLog(`✅ Auto-Comment terminé : ${commented} commentaires sur contenu adulte.`);
+    emitLog(`✅ Auto-Comment completed: ${commented} comments posted naturally.`);
 }
 
 // ─── Auto Post ────────────────────────────────────────────────────────────────

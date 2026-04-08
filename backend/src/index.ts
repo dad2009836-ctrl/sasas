@@ -787,9 +787,102 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 
 // --- SOCKET.IO LOGIC ---
 io.on('connection', (socket) => {
+    console.log('🔌 Client connected:', socket.id);
+    
+    // Forward worker events to UI
     socket.on('worker_log', (data) => io.emit('ui_log', data));
     socket.on('worker_screenshot', (data) => io.emit('ui_screenshot', data));
     socket.on('worker_state', (data) => io.emit('ui_state', data));
+    
+    // Handle notification events
+    socket.on('job_completed', async (data) => {
+        try {
+            // Create notification in database
+            await prisma.notification.create({
+                data: {
+                    userId: 'temp-user-id',
+                    type: 'JOB_COMPLETED',
+                    title: `Tâche terminée: ${data.action}`,
+                    message: `Compte: ${data.username} - Statut: ${data.status}`,
+                    read: false
+                }
+            });
+            
+            // Broadcast to all clients
+            io.emit('notification', {
+                type: 'JOB_COMPLETED',
+                title: `Tâche terminée`,
+                message: `${data.action} - ${data.username}`,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error creating notification:', error);
+        }
+    });
+    
+    socket.on('job_failed', async (data) => {
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: 'temp-user-id',
+                    type: 'JOB_FAILED',
+                    title: `Échec de la tâche: ${data.action}`,
+                    message: `Compte: ${data.username} - Erreur: ${data.error}`,
+                    read: false
+                }
+            });
+            
+            io.emit('notification', {
+                type: 'JOB_FAILED',
+                title: `Tâche échouée`,
+                message: `${data.action} - ${data.username}`,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error creating notification:', error);
+        }
+    });
+    
+    socket.on('ban_detected', async (data) => {
+        try {
+            // Create ban alert
+            await prisma.banAlert.create({
+                data: {
+                    accountId: data.accountId,
+                    alertType: data.alertType || 'BAN',
+                    message: data.message,
+                    notified: true,
+                    resolved: false
+                }
+            });
+            
+            // Create notification
+            await prisma.notification.create({
+                data: {
+                    userId: 'temp-user-id',
+                    type: 'BAN',
+                    title: `⚠️ Compte banni: ${data.username}`,
+                    message: data.message,
+                    read: false
+                }
+            });
+            
+            // Broadcast urgent notification
+            io.emit('notification', {
+                type: 'BAN',
+                title: `⚠️ ALERTE: Compte banni!`,
+                message: `${data.username} - ${data.message}`,
+                timestamp: new Date().toISOString(),
+                urgent: true
+            });
+        } catch (error) {
+            console.error('Error creating ban notification:', error);
+        }
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('🔌 Client disconnected:', socket.id);
+    });
 });
 
 async function init() {

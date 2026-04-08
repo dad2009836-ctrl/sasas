@@ -407,7 +407,12 @@ export default function Dashboard() {
                     <LayoutDashboard className="w-4 h-4" />
                     Retour au Dashboard
                 </button>
-                <NewFeatures accounts={accounts} />
+                            <NewFeatures 
+                                accounts={accounts}
+                                selectedAccount={selectedAccount}
+                                profileForm={profileForm}
+                                onProfileFormChange={setProfileForm}
+                            />
             </div>
         );
     }
@@ -553,6 +558,8 @@ export default function Dashboard() {
                                             onClick={() => setActiveAccount(acc.username)}
                                             onLaunch={(action) => launchAction(acc.id, action)}
                                             onEditProfile={() => {
+                                                // Open NewFeatures modal to edit profile
+                                                setShowNewFeatures(true);
                                                 setSelectedAccount(acc);
                                                 setProfileForm({
                                                     profileImage: acc.profileImage || '',
@@ -560,7 +567,6 @@ export default function Dashboard() {
                                                     bannerImage: acc.bannerImage || '',
                                                     niche: acc.niche || ''
                                                 });
-                                                setShowProfileModal(true);
                                             }}
                                             index={i}
                                             platform={platform}
