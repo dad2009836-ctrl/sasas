@@ -902,6 +902,8 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
         proto.get(url, (response) => {
             if (response.statusCode === 301 || response.statusCode === 302) {
                 const redirectUrl = response.headers.location;
+                file.close();
+                response.resume();
                 if (redirectUrl) {
                     downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
                     return;
@@ -973,9 +975,18 @@ async function attachMedia(page: Page, mediaUrls: string[], emitLog: (msg: strin
     const tempDir = path.join('/tmp', 'twitter-media-' + Date.now());
     fs.mkdirSync(tempDir, { recursive: true });
 
+    // Rewrite localhost URLs to use backend service hostname in Docker
+    const backendSocketUrl = process.env.BACKEND_SOCKET_URL || '';
+    const resolvedUrls = mediaUrls.map(url => {
+        if (backendSocketUrl && url.includes('localhost')) {
+            return url.replace(/http:\/\/localhost:\d+/, backendSocketUrl);
+        }
+        return url;
+    });
+
     const localPaths: string[] = [];
-    for (let i = 0; i < mediaUrls.length; i++) {
-        const url = mediaUrls[i];
+    for (let i = 0; i < resolvedUrls.length; i++) {
+        const url = resolvedUrls[i];
         const ext = path.extname(new URL(url).pathname) || '.jpg';
         const localPath = path.join(tempDir, `media_${i}${ext}`);
         try {
