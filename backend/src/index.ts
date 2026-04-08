@@ -302,11 +302,11 @@ app.post('/api/twitter-posts', async (req, res) => {
 
         // If schedule is now, queue immediately
         if (!scheduleDate || new Date(scheduleDate) <= new Date()) {
-            await twitterQueue.add('post', { accountId, postId: post.id });
+            await twitterQueue.add('post', { accountId, action: 'post', config: { postId: post.id } });
         } else {
             // Schedule for later
             const delay = new Date(scheduleDate).getTime() - Date.now();
-            await twitterQueue.add('post', { accountId, postId: post.id }, { delay });
+            await twitterQueue.add('post', { accountId, action: 'post', config: { postId: post.id } }, { delay });
         }
 
         res.status(201).json(post);

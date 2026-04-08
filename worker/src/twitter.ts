@@ -1,6 +1,10 @@
 import { chromium } from 'playwright-extra';
 import { devices } from 'playwright';
 import type { Page, BrowserContext, Browser } from 'playwright';
+import path from 'path';
+import fs from 'fs';
+import https from 'https';
+import http from 'http';
 import stealth from 'puppeteer-extra-plugin-stealth';
 import { FingerprintGenerator } from 'fingerprint-generator';
 import { FingerprintInjector } from 'fingerprint-injector';
@@ -888,6 +892,123 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
 
 // ─── Auto Post ────────────────────────────────────────────────────────────────
 
+// ─── Media Upload Helper ──────────────────────────────────────────────────────
+
+/** Downloads a file from a URL to a local temp path */
+async function downloadFile(url: string, destPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const proto = url.startsWith('https') ? https : http;
+        const file = fs.createWriteStream(destPath);
+        proto.get(url, (response) => {
+            if (response.statusCode === 301 || response.statusCode === 302) {
+                const redirectUrl = response.headers.location;
+                if (redirectUrl) {
+                    downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
+                    return;
+                }
+            }
+            response.pipe(file);
+            file.on('finish', () => { file.close(); resolve(); });
+        }).on('error', (err) => {
+            fs.unlink(destPath, () => {});
+            reject(err);
+        });
+    });
+}
+
+/** Attaches media files to the tweet compose box via the file input */
+async function attachMedia(page: Page, mediaUrls: string[], emitLog: (msg: string) => void): Promise<void> {
+    if (!mediaUrls || mediaUrls.length === 0) return;
+
+    emitLog(`📎 Ajout de ${mediaUrls.length} média(s)...`);
+
+    // Click the media (photo) button in the compose toolbar
+    const mediaButtonSelectors = [
+        '[data-testid="fileInput"]',
+        'input[type="file"][accept*="image"]',
+        'input[data-testid="fileInput"]',
+    ];
+
+    let fileInput = null;
+    for (const sel of mediaButtonSelectors) {
+        const el = page.locator(sel).first();
+        if (await el.count() > 0) {
+            fileInput = el;
+            break;
+        }
+    }
+
+    if (!fileInput) {
+        emitLog("⚠️ Champ d'upload de fichier introuvable, tentative alternative...");
+        // Try clicking the media icon button to reveal the file input
+        const mediaIconSelectors = [
+            '[aria-label="Add photos or video"]',
+            '[aria-label="Ajouter des photos ou une vidéo"]',
+            '[data-testid="tweetComposerMediaButton"]',
+        ];
+        for (const sel of mediaIconSelectors) {
+            const el = page.locator(sel).first();
+            if (await el.count() > 0) {
+                await humanClick(page, el);
+                await sleep(1000);
+                break;
+            }
+        }
+        // Try again to find the file input
+        for (const sel of mediaButtonSelectors) {
+            const el = page.locator(sel).first();
+            if (await el.count() > 0) {
+                fileInput = el;
+                break;
+            }
+        }
+    }
+
+    if (!fileInput) {
+        emitLog("❌ Impossible de trouver le champ d'upload de fichier.");
+        return;
+    }
+
+    // Download each media file and upload via the file input
+    const tempDir = path.join('/tmp', 'twitter-media-' + Date.now());
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    const localPaths: string[] = [];
+    for (let i = 0; i < mediaUrls.length; i++) {
+        const url = mediaUrls[i];
+        const ext = path.extname(new URL(url).pathname) || '.jpg';
+        const localPath = path.join(tempDir, `media_${i}${ext}`);
+        try {
+            emitLog(`⬇️ Téléchargement média ${i + 1}/${mediaUrls.length}...`);
+            await downloadFile(url, localPath);
+            localPaths.push(localPath);
+        } catch (err: any) {
+            emitLog(`⚠️ Échec du téléchargement du média ${i + 1}: ${err.message}`);
+        }
+    }
+
+    if (localPaths.length === 0) {
+        emitLog("❌ Aucun média n'a pu être téléchargé.");
+        return;
+    }
+
+    // Upload all files at once via the file input
+    try {
+        await fileInput.setInputFiles(localPaths);
+        emitLog(`✅ ${localPaths.length} média(s) ajouté(s) avec succès!`);
+        // Wait for the media to be processed/uploaded by Twitter
+        await sleep(randomRange(3000, 6000));
+    } catch (err: any) {
+        emitLog(`❌ Erreur lors de l'ajout des médias: ${err.message}`);
+    }
+
+    // Clean up temp files
+    try {
+        for (const p of localPaths) fs.unlinkSync(p);
+        fs.rmdirSync(tempDir);
+    } catch {}
+}
+
 const AUTO_TWEETS = [
     "Just subscribed to the hottest OF creators 🔥😈 Who should I check next?",
     "Late night jerking session with some premium content 💦😍",
@@ -913,6 +1034,7 @@ const AUTO_TWEETS = [
 
 async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: any) {
     const tweetContent = config?.content || AUTO_TWEETS[randomRange(0, AUTO_TWEETS.length - 1)];
+    const mediaUrls: string[] = config?.mediaUrls || [];
     emitLog("📝 Auto-Post : Publication d'un tweet...");
 
     await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
@@ -951,6 +1073,11 @@ async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: an
         emitLog(`✍️ Saisie: "${tweetContent.substring(0, 40)}..."`);
         await humanType(page, textArea, tweetContent);
         await sleep(randomRange(1500, 3500));
+
+        // Attach media if provided
+        if (mediaUrls.length > 0) {
+            await attachMedia(page, mediaUrls, emitLog);
+        }
 
         const tweetBtn = page.locator('[data-testid="tweetButton"]').first();
         if (await tweetBtn.count() > 0) {
@@ -1025,6 +1152,11 @@ async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postI
         // Type content
         await humanType(page, 'div[data-testid="tweetTextarea_0"]', post.content);
         await sleep(randomRange(1000, 2000));
+
+        // Attach media if the post has mediaUrls
+        if (post.mediaUrls && post.mediaUrls.length > 0) {
+            await attachMedia(page, post.mediaUrls, emitLog);
+        }
 
         // Click Tweet button
         const tweetBtn = page.locator('[data-testid="tweetButton"]').first();
