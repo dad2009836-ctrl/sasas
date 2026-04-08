@@ -131,6 +131,8 @@ interface NewFeaturesProps {
     onProfileFormChange?: (form: any) => void;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4005';
+
 export default function NewFeatures({ accounts, selectedAccount: externalSelectedAccount, profileForm: externalProfileForm, onProfileFormChange }: NewFeaturesProps) {
     const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'comments' | 'notifications' | 'stats'>('groups');
     
@@ -183,7 +185,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         setStatsLoading(true);
         try {
             // Fetch activities
-            const activitiesRes = await fetch('http://localhost:4000/api/activities?limit=1000');
+            const activitiesRes = await fetch(`${API_URL}/api/activities?limit=1000`);
             const activities = await activitiesRes.json();
 
             // Process data for charts
@@ -303,7 +305,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
 
     // Real-time notifications
     useEffect(() => {
-        const socket = io('http://localhost:4000');
+        const socket = io(API_URL);
         
         socket.on('notification', (notification) => {
             console.log('🔔 Notification reçue:', notification);
@@ -351,27 +353,27 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         try {
             switch(activeTab) {
                 case 'groups':
-                    const groupsRes = await fetch('http://localhost:4000/api/groups');
+                    const groupsRes = await fetch(`${API_URL}/api/groups`);
                     const groupsData = await groupsRes.json();
                     setGroups(groupsData);
                     break;
                 case 'templates':
-                    const templatesRes = await fetch('http://localhost:4000/api/templates');
+                    const templatesRes = await fetch(`${API_URL}/api/templates`);
                     const templatesData = await templatesRes.json();
                     setTemplates(templatesData);
                     break;
                 case 'activities':
-                    const activitiesRes = await fetch('http://localhost:4000/api/activities?limit=100');
+                    const activitiesRes = await fetch(`${API_URL}/api/activities?limit=100`);
                     const activitiesData = await activitiesRes.json();
                     setActivities(activitiesData);
                     break;
                 case 'comments':
-                    const commentsRes = await fetch('http://localhost:4000/api/comment-requests');
+                    const commentsRes = await fetch(`${API_URL}/api/comment-requests`);
                     const commentsData = await commentsRes.json();
                     setCommentRequests(commentsData);
                     break;
                 case 'notifications':
-                    const notifRes = await fetch('http://localhost:4000/api/notifications');
+                    const notifRes = await fetch(`${API_URL}/api/notifications`);
                     const notifData = await notifRes.json();
                     setNotifications(notifData);
                     setUnreadCount(notifData.filter((n: Notification) => !n.read).length);
@@ -387,7 +389,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
 
     // Group functions
     const createGroup = async () => {
-        const res = await fetch('http://localhost:4000/api/groups', {
+        const res = await fetch(`${API_URL}/api/groups`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...newGroup, userId: 'temp-user-id' })
@@ -400,13 +402,13 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
     };
 
     const deleteGroup = async (id: string) => {
-        await fetch(`http://localhost:4000/api/groups/${id}`, { method: 'DELETE' });
+        await fetch(`${API_URL}/api/groups/${id}`, { method: 'DELETE' });
         fetchData();
     };
 
     // Template functions
     const createTemplate = async () => {
-        const res = await fetch('http://localhost:4000/api/templates', {
+        const res = await fetch(`${API_URL}/api/templates`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -422,13 +424,13 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
     };
 
     const deleteTemplate = async (id: string) => {
-        await fetch(`http://localhost:4000/api/templates/${id}`, { method: 'DELETE' });
+        await fetch(`${API_URL}/api/templates/${id}`, { method: 'DELETE' });
         fetchData();
     };
 
     // Comment request functions
     const createCommentRequest = async () => {
-        const res = await fetch('http://localhost:4000/api/comment-requests', {
+        const res = await fetch(`${API_URL}/api/comment-requests`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -464,7 +466,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
             }
 
             // Update profile
-            await fetch(`http://localhost:4000/api/twitter-accounts/${selectedAccount.id}/profile`, {
+            await fetch(`${API_URL}/api/twitter-accounts/${selectedAccount.id}/profile`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -490,7 +492,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
 
     // Mark notification as read
     const markAsRead = async (id: string) => {
-        await fetch(`http://localhost:4000/api/notifications/${id}/read`, {
+        await fetch(`${API_URL}/api/notifications/${id}/read`, {
             method: 'PATCH'
         });
         fetchData();
@@ -545,7 +547,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         formData.append('image', file);
         formData.append('type', type);
 
-        const response = await fetch('http://localhost:4000/api/upload', {
+        const response = await fetch(`${API_URL}/api/upload`, {
             method: 'POST',
             body: formData,
         });

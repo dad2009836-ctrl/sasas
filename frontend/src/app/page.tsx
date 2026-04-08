@@ -119,6 +119,8 @@ interface Notification {
     createdAt: string;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4005';
+
 export default function Dashboard() {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [logs, setLogs] = useState<{ username: string, message: string, timestamp?: Date }[]>([]);
@@ -183,7 +185,7 @@ export default function Dashboard() {
     }, [platform, mounted]);
 
     useEffect(() => {
-        const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000');
+        const socket = io(API_URL);
         
         socket.on('ui_log', (data) => setLogs((prev) => [
             {...data, timestamp: new Date()}, 
@@ -215,7 +217,7 @@ export default function Dashboard() {
     // Posts & Stats Functions
     const fetchPosts = async (accountId: string) => {
         try {
-            const res = await fetch(`http://localhost:4000/api/twitter-posts/${accountId}`);
+            const res = await fetch(`${API_URL}/api/twitter-posts/${accountId}`);
             const data = await res.json();
             setPosts(data);
         } catch (err) {
@@ -225,7 +227,7 @@ export default function Dashboard() {
 
     const fetchStats = async (accountId: string, days: number = 30) => {
         try {
-            const res = await fetch(`http://localhost:4000/api/twitter-stats/${accountId}?days=${days}`);
+            const res = await fetch(`${API_URL}/api/twitter-stats/${accountId}?days=${days}`);
             const data = await res.json();
             setStats(data);
         } catch (err) {
@@ -262,7 +264,7 @@ export default function Dashboard() {
         const formData = new FormData();
         formData.append('image', file);
         formData.append('type', 'post');
-        const response = await fetch('http://localhost:4000/api/upload', {
+        const response = await fetch(`${API_URL}/api/upload`, {
             method: 'POST',
             body: formData,
         });
@@ -291,7 +293,7 @@ export default function Dashboard() {
                 mediaUrls.push(url);
             }
 
-            const res = await fetch('http://localhost:4000/api/twitter-posts', {
+            const res = await fetch(`${API_URL}/api/twitter-posts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -319,7 +321,7 @@ export default function Dashboard() {
 
     const fetchAccounts = async (p: string) => {
         try {
-            const url = p === 'TWITTER' ? 'http://localhost:4000/api/twitter-accounts' : 'http://localhost:4000/api/accounts';
+            const url = p === 'TWITTER' ? `${API_URL}/api/twitter-accounts` : `${API_URL}/api/accounts`;
             const res = await fetch(url);
             if (!res.ok) {
                 throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -338,8 +340,8 @@ export default function Dashboard() {
 
     const handleAddAccount = async (e: React.FormEvent) => {
         e.preventDefault();
-        const url = platform === 'TWITTER' ? 'http://localhost:4000/api/twitter-accounts' : 'http://localhost:4000/api/accounts';
-        try {
+                const url = platform === 'TWITTER' ? `${API_URL}/api/twitter-accounts` : `${API_URL}/api/accounts`;
+                try {
             // For Twitter, build cookies array from simple input values
             let cookiesArray = undefined;
             if (platform === 'TWITTER') {
@@ -412,7 +414,7 @@ export default function Dashboard() {
     };
 
     const launchAction = async (id: string, action: string) => {
-        const url = platform === 'TWITTER' ? `http://localhost:4000/api/twitter-accounts/${id}/action` : `http://localhost:4000/api/accounts/${id}/action`;
+        const url = platform === 'TWITTER' ? `${API_URL}/api/twitter-accounts/${id}/action` : `${API_URL}/api/accounts/${id}/action`;
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -435,7 +437,7 @@ export default function Dashboard() {
 
     const handleDeleteAccount = async (id: string) => {
         if (!confirm("Voulez-vous vraiment détruire ce nœud de la base de données ?")) return;
-        const url = platform === 'TWITTER' ? `http://localhost:4000/api/twitter-accounts/${id}` : `http://localhost:4000/api/accounts/${id}`;
+        const url = platform === 'TWITTER' ? `${API_URL}/api/twitter-accounts/${id}` : `${API_URL}/api/accounts/${id}`;
         const response = await fetch(url, { method: 'DELETE' });
         if (!response.ok) {
             const err = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -1080,7 +1082,8 @@ export default function Dashboard() {
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                             onSubmit={handleAddAccount}
-                            className="w-full max-w-lg bg-[#0f0f11] border border-white/10 rounded-3xl p-8 relative shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10"
+                            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#0f0f11] border border-white/10 rounded-3xl p-8 relative shadow-[0_0_50px_rgba(0,0,0,0.5)] z-10"
+                            style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 rounded-3xl pointer-events-none" />
                             
