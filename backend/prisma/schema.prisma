@@ -65,6 +65,8 @@ model ActivityLog {
   action    String
   details   Json?
   status    String          @default("SUCCESS")
+  postUrl   String?
+  comment   String?
   account   TwitterAccount? @relation(fields: [accountId], references: [id])
 }
 

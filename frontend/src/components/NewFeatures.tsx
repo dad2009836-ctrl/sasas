@@ -96,6 +96,21 @@ interface Activity {
     message: string;
     status: string;
     timestamp: string;
+    postUrl?: string;
+    comment?: string;
+    account?: {
+        username: string;
+    };
+}
+
+interface ActionHistoryEntry {
+    id: string;
+    action: string;
+    message: string;
+    postUrl: string;
+    comment?: string;
+    status: string;
+    timestamp: string;
     account?: {
         username: string;
     };
@@ -134,12 +149,14 @@ interface NewFeaturesProps {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4005';
 
 export default function NewFeatures({ accounts, selectedAccount: externalSelectedAccount, profileForm: externalProfileForm, onProfileFormChange }: NewFeaturesProps) {
-    const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'comments' | 'notifications' | 'stats'>('groups');
+    const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'history' | 'comments' | 'notifications' | 'stats'>('groups');
     
     // Data states
     const [groups, setGroups] = useState<Group[]>([]);
     const [templates, setTemplates] = useState<Template[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
+    const [actionHistory, setActionHistory] = useState<ActionHistoryEntry[]>([]);
+    const [historyFilter, setHistoryFilter] = useState<string>('all');
     const [commentRequests, setCommentRequests] = useState<CommentRequest[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     
@@ -560,10 +577,50 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         return data.url;
     };
 
+    const fetchActionHistory = async () => {
+        try {
+            const params = new URLSearchParams();
+            if (historyFilter !== 'all') params.append('action', historyFilter);
+            const res = await fetch(`${API_URL}/api/action-history?${params.toString()}`);
+            const data = await res.json();
+            setActionHistory(data);
+        } catch (error) {
+            console.error('Error fetching action history:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'history') {
+            fetchActionHistory();
+        }
+    }, [activeTab, historyFilter]);
+
+    const getActionIcon = (action: string) => {
+        switch (action) {
+            case 'like': case 'community_like': return <Heart className="w-4 h-4 text-red-400" />;
+            case 'comment': return <MessageCircle className="w-4 h-4 text-blue-400" />;
+            case 'retweet': return <Repeat className="w-4 h-4 text-green-400" />;
+            case 'follow': return <UserPlus className="w-4 h-4 text-purple-400" />;
+            default: return <Activity className="w-4 h-4 text-slate-400" />;
+        }
+    };
+
+    const getActionLabel = (action: string) => {
+        switch (action) {
+            case 'like': return 'Like';
+            case 'community_like': return 'Like (Communauté)';
+            case 'comment': return 'Commentaire';
+            case 'retweet': return 'Retweet';
+            case 'follow': return 'Follow';
+            default: return action;
+        }
+    };
+
     const tabs = [
         { id: 'groups', label: 'Groupes', icon: FolderTree },
         { id: 'templates', label: 'Templates', icon: FileText },
         { id: 'stats', label: 'Statistiques', icon: BarChart3 },
+        { id: 'history', label: 'Historique', icon: Eye },
         { id: 'activities', label: 'Activités', icon: Clock },
         { id: 'comments', label: 'Commentaires', icon: MessageCircle },
         { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadCount }
@@ -1014,6 +1071,144 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                                             </ResponsiveContainer>
                                         </div>
                                     </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {/* HISTORY TAB */}
+                    {activeTab === 'history' && (
+                        <motion.div
+                            key="history"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold">Historique des Actions</h2>
+                                <button
+                                    onClick={fetchActionHistory}
+                                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+                                >
+                                    <Activity className="w-4 h-4" />
+                                    Rafraîchir
+                                </button>
+                            </div>
+
+                            {/* Filter buttons */}
+                            <div className="flex gap-2 mb-4 flex-wrap">
+                                {[
+                                    { value: 'all', label: 'Tout', icon: Eye },
+                                    { value: 'like', label: 'Likes', icon: Heart },
+                                    { value: 'comment', label: 'Commentaires', icon: MessageCircle },
+                                    { value: 'retweet', label: 'Retweets', icon: Repeat },
+                                    { value: 'follow', label: 'Follows', icon: UserPlus },
+                                    { value: 'community_like', label: 'Communauté', icon: Users },
+                                ].map(filter => (
+                                    <button
+                                        key={filter.value}
+                                        onClick={() => setHistoryFilter(filter.value)}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                                            historyFilter === filter.value
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                        }`}
+                                    >
+                                        <filter.icon className="w-3.5 h-3.5" />
+                                        {filter.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Stats summary */}
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                                <div className="bg-gradient-to-br from-red-600/20 to-red-800/20 border border-red-500/30 rounded-xl p-3 text-center">
+                                    <Heart className="w-5 h-5 text-red-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{actionHistory.filter(h => h.action === 'like' || h.action === 'community_like').length}</p>
+                                    <p className="text-xs text-slate-400">Likes</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-3 text-center">
+                                    <MessageCircle className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{actionHistory.filter(h => h.action === 'comment').length}</p>
+                                    <p className="text-xs text-slate-400">Commentaires</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-xl p-3 text-center">
+                                    <Repeat className="w-5 h-5 text-green-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{actionHistory.filter(h => h.action === 'retweet').length}</p>
+                                    <p className="text-xs text-slate-400">Retweets</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 border border-purple-500/30 rounded-xl p-3 text-center">
+                                    <UserPlus className="w-5 h-5 text-purple-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{actionHistory.filter(h => h.action === 'follow').length}</p>
+                                    <p className="text-xs text-slate-400">Follows</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-amber-600/20 to-amber-800/20 border border-amber-500/30 rounded-xl p-3 text-center">
+                                    <Users className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{actionHistory.filter(h => h.action === 'community_like').length}</p>
+                                    <p className="text-xs text-slate-400">Communauté</p>
+                                </div>
+                            </div>
+
+                            {/* History list */}
+                            <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="text-xs uppercase text-slate-400 bg-slate-800/50 border-b border-slate-700">
+                                            <tr>
+                                                <th className="px-4 py-3">Action</th>
+                                                <th className="px-4 py-3">Compte</th>
+                                                <th className="px-4 py-3">Lien du Post</th>
+                                                <th className="px-4 py-3">Commentaire</th>
+                                                <th className="px-4 py-3">Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                            {actionHistory.map((entry) => (
+                                                <tr key={entry.id} className="hover:bg-slate-700/50 transition-colors">
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            {getActionIcon(entry.action)}
+                                                            <span className="font-medium">{getActionLabel(entry.action)}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className="text-slate-300">@{entry.account?.username || 'N/A'}</span>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <a
+                                                            href={entry.postUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-blue-400 hover:text-blue-300 hover:underline truncate block max-w-xs"
+                                                            title={entry.postUrl}
+                                                        >
+                                                            {entry.postUrl.replace('https://x.com/', '')}
+                                                        </a>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {entry.comment ? (
+                                                            <span className="text-slate-300 text-xs italic max-w-[200px] truncate block" title={entry.comment}>
+                                                                &quot;{entry.comment}&quot;
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-600">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                                                        {new Date(entry.timestamp).toLocaleString('fr-FR')}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {actionHistory.length === 0 && (
+                                <div className="text-center py-12 text-slate-500">
+                                    <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                    <p>Aucun historique d&apos;action avec lien de post</p>
+                                    <p className="text-sm mt-2">Les liens des posts appara&icirc;tront ici lorsque le bot effectuera des actions (like, commentaire, retweet, follow, communaut&eacute;)</p>
                                 </div>
                             )}
                         </motion.div>

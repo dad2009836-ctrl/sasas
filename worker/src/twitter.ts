@@ -685,9 +685,10 @@ async function doWarmUp(page: Page, emitLog: (msg: string) => void) {
 
 // ─── Auto Like ────────────────────────────────────────────────────────────────
 
-async function doAutoLike(page: Page, emitLog: (msg: string) => void, config: any) {
+async function doAutoLike(page: Page, emitLog: (msg: string) => void, config: any): Promise<Array<{ postUrl: string; action: string }>> {
     const count = config?.count || randomRange(5, 12);
     emitLog(`❤️ Auto-Like : Ciblage de ${count} posts (contenu adulte/NSFW uniquement)...`);
+    const actionHistory: Array<{ postUrl: string; action: string }> = [];
 
     // Go to explore adult content - use specific search terms
     const adultKeywords = ['onlyfans', 'nsfw', 'adult content', '18+', 'model', 'babe'];
@@ -714,24 +715,35 @@ async function doAutoLike(page: Page, emitLog: (msg: string) => void, config: an
             const ariaLabel = await btn.evaluate((el: any) => el.closest('[aria-label]')?.getAttribute('aria-label') || '').catch(() => '');
             if (ariaLabel.toLowerCase().includes('unlike')) continue;
 
+            // Extract the post URL before clicking
+            const postUrl = await btn.evaluate((el: any) => {
+                const article = el.closest('article');
+                if (!article) return '';
+                const timeLink = article.querySelector('a[href*="/status/"]');
+                return timeLink ? 'https://x.com' + timeLink.getAttribute('href') : '';
+            }).catch(() => '');
+
             await sleep(randomRange(2000, 5000));
             await humanClick(page, btn);
             liked++;
-            emitLog(`❤️ Liked adult content post #${liked}/${count}`);
+            if (postUrl) actionHistory.push({ postUrl, action: 'like' });
+            emitLog(`❤️ Liked post #${liked}/${count}${postUrl ? ` - ${postUrl}` : ''}`);
             await sleep(randomRange(1500, 4000));
         }
         scrollAttempts++;
     }
 
-    emitLog(`✅ Auto-Like terminé : ${liked} posts de contenu adulte likés.`);
+    emitLog(`✅ Auto-Like terminé : ${liked} posts likés.`);
+    return actionHistory;
 }
 
 // ─── Auto Follow ──────────────────────────────────────────────────────────────
 
-async function doAutoFollow(page: Page, emitLog: (msg: string) => void, config: any) {
+async function doAutoFollow(page: Page, emitLog: (msg: string) => void, config: any): Promise<Array<{ postUrl: string; action: string }>> {
     const keyword = config?.keyword || 'onlyfans model content creator';
     const count = config?.count || randomRange(3, 7);
     emitLog(`👥 Auto-Follow : Recherche de "${keyword}" pour suivre ${count} comptes (OnlyFans/Models)...`);
+    const actionHistory: Array<{ postUrl: string; action: string }> = [];
 
     // Go to search
     await page.goto(`https://x.com/search?q=${encodeURIComponent(keyword)}&f=user`, { waitUntil: 'domcontentloaded' });
@@ -749,23 +761,34 @@ async function doAutoFollow(page: Page, emitLog: (msg: string) => void, config: 
             const text = await btn.textContent().catch(() => '');
             if (!text?.toLowerCase().includes('follow') || text.toLowerCase().includes('following')) continue;
 
+            // Extract the profile URL
+            const profileUrl = await btn.evaluate((el: any) => {
+                const userCell = el.closest('[data-testid="UserCell"]') || el.closest('div[role="button"]')?.parentElement;
+                if (!userCell) return '';
+                const profileLink = userCell.querySelector('a[href*="/"][role="link"]');
+                return profileLink ? 'https://x.com' + profileLink.getAttribute('href') : '';
+            }).catch(() => '');
+
             await sleep(randomRange(3000, 7000));
             await humanClick(page, btn);
             followed++;
-            emitLog(`👤 Followed account #${followed}/${count} (OnlyFans niche)`);
+            if (profileUrl) actionHistory.push({ postUrl: profileUrl, action: 'follow' });
+            emitLog(`👤 Followed account #${followed}/${count}${profileUrl ? ` - ${profileUrl}` : ''}`);
             await sleep(randomRange(2000, 5000));
         }
         scrollAttempts++;
     }
 
-    emitLog(`✅ Auto-Follow terminé : ${followed} comptes suivis (models/OF creators).`);
+    emitLog(`✅ Auto-Follow terminé : ${followed} comptes suivis.`);
+    return actionHistory;
 }
 
 // ─── Auto Retweet ─────────────────────────────────────────────────────────────
 
-async function doAutoRetweet(page: Page, emitLog: (msg: string) => void, config: any) {
+async function doAutoRetweet(page: Page, emitLog: (msg: string) => void, config: any): Promise<Array<{ postUrl: string; action: string }>> {
     const count = config?.count || randomRange(2, 5);
     emitLog(`🔁 Auto-Retweet : Ciblage de ${count} posts de contenu adulte...`);
+    const actionHistory: Array<{ postUrl: string; action: string }> = [];
 
     // Search for adult content to retweet
     const adultKeywords = ['onlyfans', 'nsfw', 'adult content', '18+', 'model'];
@@ -784,6 +807,15 @@ async function doAutoRetweet(page: Page, emitLog: (msg: string) => void, config:
 
         for (const btn of rtBtns) {
             if (retweeted >= count) break;
+
+            // Extract the post URL before clicking
+            const postUrl = await btn.evaluate((el: any) => {
+                const article = el.closest('article');
+                if (!article) return '';
+                const timeLink = article.querySelector('a[href*="/status/"]');
+                return timeLink ? 'https://x.com' + timeLink.getAttribute('href') : '';
+            }).catch(() => '');
+
             await sleep(randomRange(3000, 8000));
             await humanClick(page, btn);
             await sleep(randomRange(1000, 2000));
@@ -793,14 +825,16 @@ async function doAutoRetweet(page: Page, emitLog: (msg: string) => void, config:
             if (await confirmBtn.count() > 0) {
                 await humanClick(page, confirmBtn);
                 retweeted++;
-                emitLog(`🔁 Retweeté contenu adulte #${retweeted}/${count}`);
+                if (postUrl) actionHistory.push({ postUrl, action: 'retweet' });
+                emitLog(`🔁 Retweeté #${retweeted}/${count}${postUrl ? ` - ${postUrl}` : ''}`);
             }
             await sleep(randomRange(2000, 5000));
         }
         scrollAttempts++;
     }
 
-    emitLog(`✅ Auto-Retweet terminé : ${retweeted} posts de contenu adulte retweetés.`);
+    emitLog(`✅ Auto-Retweet terminé : ${retweeted} posts retweetés.`);
+    return actionHistory;
 }
 
 // ─── Auto Comment ─────────────────────────────────────────────────────────────
@@ -839,10 +873,11 @@ const AUTO_COMMENTS = [
     "This is everything! 😍",
 ];
 
-async function doAutoComment(page: Page, emitLog: (msg: string) => void, config: any) {
+async function doAutoComment(page: Page, emitLog: (msg: string) => void, config: any): Promise<Array<{ postUrl: string; action: string; comment: string }>> {
     const count = config?.count || randomRange(2, 4);
     const customComments = config?.comments || AUTO_COMMENTS;
     emitLog(`💬 Leaving ${count} natural comments on timeline...`);
+    const actionHistory: Array<{ postUrl: string; action: string; comment: string }> = [];
 
     // Search for adult content creators
     const adultKeywords = ['onlyfans', 'nsfw', 'adult', 'model', '18+'];
@@ -861,6 +896,15 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
 
         for (const btn of replyBtns) {
             if (commented >= count) break;
+
+            // Extract the post URL before clicking reply
+            const postUrl = await btn.evaluate((el: any) => {
+                const article = el.closest('article');
+                if (!article) return '';
+                const timeLink = article.querySelector('a[href*="/status/"]');
+                return timeLink ? 'https://x.com' + timeLink.getAttribute('href') : '';
+            }).catch(() => '');
+
             await sleep(randomRange(4000, 10000));
             await humanClick(page, btn);
             await sleep(randomRange(1500, 3000));
@@ -878,7 +922,8 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
             if (await replyBtn.count() > 0) {
                 await humanClick(page, replyBtn);
                 commented++;
-                emitLog(`✅ Comment #${commented}/${count} posted successfully.`);
+                if (postUrl) actionHistory.push({ postUrl, action: 'comment', comment });
+                emitLog(`✅ Comment #${commented}/${count} posted${postUrl ? ` - ${postUrl}` : ''}`);
             }
             await sleep(randomRange(3000, 8000));
         }
@@ -888,6 +933,7 @@ async function doAutoComment(page: Page, emitLog: (msg: string) => void, config:
     }
 
     emitLog(`✅ Auto-Comment completed: ${commented} comments posted naturally.`);
+    return actionHistory;
 }
 
 // ─── Auto Post ────────────────────────────────────────────────────────────────
@@ -1270,9 +1316,10 @@ async function doSetupProfile(page: Page, emitLog: (msg: string) => void, config
 
 // ─── Join Community ───────────────────────────────────────────────────────────
 
-async function doJoinCommunity(page: Page, emitLog: (msg: string) => void, config?: any) {
+async function doJoinCommunity(page: Page, emitLog: (msg: string) => void, config?: any): Promise<Array<{ postUrl: string; action: string }>> {
     const keyword = config?.keyword || 'Web3 Crypto';
     emitLog(`👥 Join Community : Recherche de "${keyword}"...`);
+    const actionHistory: Array<{ postUrl: string; action: string }> = [];
 
     await page.goto('https://x.com/explore', { waitUntil: 'domcontentloaded' });
     await sleep(randomRange(3000, 5000));
@@ -1297,16 +1344,26 @@ async function doJoinCommunity(page: Page, emitLog: (msg: string) => void, confi
             await humanScroll(page);
             const likeBtns = await page.$$('[data-testid="like"]');
             if (likeBtns.length > i) {
+                // Extract the post URL
+                const postUrl = await likeBtns[i].evaluate((el: any) => {
+                    const article = el.closest('article');
+                    if (!article) return '';
+                    const timeLink = article.querySelector('a[href*="/status/"]');
+                    return timeLink ? 'https://x.com' + timeLink.getAttribute('href') : '';
+                }).catch(() => '');
+
                 await sleep(randomRange(1500, 3500));
                 await humanClick(page, likeBtns[i]);
                 liked++;
-                emitLog(`❤️ Liked post #${liked}`);
+                if (postUrl) actionHistory.push({ postUrl, action: 'community_like' });
+                emitLog(`❤️ Liked community post #${liked}${postUrl ? ` - ${postUrl}` : ''}`);
             }
         }
         emitLog(`✅ Join Community terminé : ${liked} interactions.`);
     } catch {
         emitLog("❌ Erreur lors de l'interaction avec Explore.");
     }
+    return actionHistory;
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -1411,6 +1468,7 @@ export const twitterWorkerHandler = async (job: any) => {
 
         // ── Execute action ──
         emitLog(`⚡ Exécution de l'action : ${action}`);
+        let actionHistory: Array<{ postUrl: string; action: string; comment?: string }> = [];
         switch (action) {
             case 'warmUp':
                 await doWarmUp(page, emitLog);
@@ -1419,19 +1477,19 @@ export const twitterWorkerHandler = async (job: any) => {
                 await doSetupProfile(page, emitLog, config);
                 break;
             case 'joinCommunity':
-                await doJoinCommunity(page, emitLog, config);
+                actionHistory = await doJoinCommunity(page, emitLog, config);
                 break;
             case 'autoLike':
-                await doAutoLike(page, emitLog, config);
+                actionHistory = await doAutoLike(page, emitLog, config);
                 break;
             case 'autoFollow':
-                await doAutoFollow(page, emitLog, config);
+                actionHistory = await doAutoFollow(page, emitLog, config);
                 break;
             case 'autoRetweet':
-                await doAutoRetweet(page, emitLog, config);
+                actionHistory = await doAutoRetweet(page, emitLog, config);
                 break;
             case 'autoComment':
-                await doAutoComment(page, emitLog, config);
+                actionHistory = await doAutoComment(page, emitLog, config);
                 break;
             case 'autoPost':
                 await doAutoPost(page, emitLog, config);
@@ -1445,13 +1503,36 @@ export const twitterWorkerHandler = async (job: any) => {
                 }
                 break;
             case 'spamComments':
-                await doAutoComment(page, emitLog, { count: config?.count || 5 });
+                actionHistory = await doAutoComment(page, emitLog, { count: config?.count || 5 });
                 break;
             case 'postCommunity':
                 await doAutoPost(page, emitLog, config);
                 break;
             default:
                 emitLog(`⚠️ Action inconnue : ${action}`);
+        }
+
+        // ── Save action history to database ──
+        if (actionHistory.length > 0) {
+            emitLog(`📋 Sauvegarde de ${actionHistory.length} actions dans l'historique...`);
+            for (const entry of actionHistory) {
+                try {
+                    await prisma.activityLog.create({
+                        data: {
+                            accountId,
+                            action: entry.action,
+                            message: `${entry.action} on ${entry.postUrl}`,
+                            postUrl: entry.postUrl,
+                            comment: 'comment' in entry ? entry.comment : null,
+                            status: 'SUCCESS',
+                            details: { postUrl: entry.postUrl, comment: 'comment' in entry ? entry.comment : undefined }
+                        }
+                    });
+                } catch (err) {
+                    emitLog(`⚠️ Erreur lors de la sauvegarde: ${err}`);
+                }
+            }
+            emitLog(`✅ ${actionHistory.length} actions sauvegardées dans l'historique.`);
         }
 
         // Refresh cookies after actions

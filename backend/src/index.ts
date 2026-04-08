@@ -556,6 +556,7 @@ app.get('/api/activities', async (req, res) => {
                 ...(action && { action: action as string }),
                 ...(status && { status: status as string })
             },
+            include: { account: true },
             orderBy: { timestamp: 'desc' },
             take: Number(limit)
         });
@@ -566,10 +567,33 @@ app.get('/api/activities', async (req, res) => {
 });
 
 /**
+ * Get action history with post links
+ */
+app.get('/api/action-history', async (req, res) => {
+    const { accountId, action, limit = 200 } = req.query;
+
+    try {
+        const history = await prisma.activityLog.findMany({
+            where: {
+                postUrl: { not: null },
+                ...(accountId && { accountId: accountId as string }),
+                ...(action && { action: action as string })
+            },
+            include: { account: true },
+            orderBy: { timestamp: 'desc' },
+            take: Number(limit)
+        });
+        res.json(history);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * Log activity
  */
 app.post('/api/activities', async (req, res) => {
-    const { accountId, action, message, details, status } = req.body;
+    const { accountId, action, message, details, status, postUrl, comment } = req.body;
 
     try {
         const activity = await prisma.activityLog.create({
@@ -578,6 +602,8 @@ app.post('/api/activities', async (req, res) => {
                 action,
                 message,
                 details,
+                postUrl: postUrl || null,
+                comment: comment || null,
                 status: status || 'SUCCESS'
             }
         });
