@@ -149,6 +149,15 @@ interface Notification {
     createdAt: string;
 }
 
+interface Community {
+    id: string;
+    name: string;
+    url: string;
+    actions: string[];
+    isActive: boolean;
+    createdAt: string;
+}
+
 interface NewFeaturesProps {
     accounts: Account[];
     selectedAccount?: Account | null;
@@ -164,7 +173,7 @@ interface NewFeaturesProps {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4005';
 
 export default function NewFeatures({ accounts, selectedAccount: externalSelectedAccount, profileForm: externalProfileForm, onProfileFormChange }: NewFeaturesProps) {
-    const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'history' | 'publications' | 'comments' | 'notifications' | 'stats'>('groups');
+    const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'history' | 'publications' | 'comments' | 'notifications' | 'stats' | 'communities'>('groups');
     
     // Data states
     const [groups, setGroups] = useState<Group[]>([]);
@@ -176,6 +185,9 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
     const [historyFilter, setHistoryFilter] = useState<string>('all');
     const [commentRequests, setCommentRequests] = useState<CommentRequest[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [communities, setCommunities] = useState<Community[]>([]);
+    const [showCommunityAddModal, setShowCommunityAddModal] = useState(false);
+    const [newCommunity, setNewCommunity] = useState({ name: '', url: '', actions: ['comment', 'retweet'] as string[] });
     
     // Modal states
     const [showGroupModal, setShowGroupModal] = useState(false);
@@ -418,9 +430,80 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                 case 'stats':
                     loadStatistics();
                     break;
+                case 'communities':
+                    fetchCommunities();
+                    break;
             }
         } catch (error) {
             console.error('Error fetching data:', error);
+        }
+    };
+
+    // Community functions
+    const fetchCommunities = async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/communities`);
+            const data = await res.json();
+            setCommunities(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Error fetching communities:', error);
+            setCommunities([]);
+        }
+    };
+
+    const createCommunity = async () => {
+        if (!newCommunity.name || !newCommunity.url) return;
+        try {
+            const res = await fetch(`${API_URL}/api/communities`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newCommunity)
+            });
+            if (res.ok) {
+                setShowCommunityAddModal(false);
+                setNewCommunity({ name: '', url: '', actions: ['comment', 'retweet'] });
+                fetchCommunities();
+            }
+        } catch (error) {
+            console.error('Error creating community:', error);
+        }
+    };
+
+    const deleteCommunity = async (id: string) => {
+        try {
+            await fetch(`${API_URL}/api/communities/${id}`, { method: 'DELETE' });
+            fetchCommunities();
+        } catch (error) {
+            console.error('Error deleting community:', error);
+        }
+    };
+
+    const toggleCommunity = async (id: string, isActive: boolean) => {
+        try {
+            await fetch(`${API_URL}/api/communities/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive: !isActive })
+            });
+            fetchCommunities();
+        } catch (error) {
+            console.error('Error toggling community:', error);
+        }
+    };
+
+    const toggleCommunityAction = async (id: string, currentActions: string[], action: string) => {
+        const newActions = currentActions.includes(action)
+            ? currentActions.filter(a => a !== action)
+            : [...currentActions, action];
+        try {
+            await fetch(`${API_URL}/api/communities/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ actions: newActions })
+            });
+            fetchCommunities();
+        } catch (error) {
+            console.error('Error updating community actions:', error);
         }
     };
 
@@ -658,6 +741,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         { id: 'templates', label: 'Templates', icon: FileText },
         { id: 'stats', label: 'Statistiques', icon: BarChart3 },
         { id: 'publications', label: 'Publications', icon: Share2 },
+        { id: 'communities', label: 'Communautes', icon: Users },
         { id: 'history', label: 'Historique', icon: Eye },
         { id: 'activities', label: 'Activités', icon: Clock },
         { id: 'comments', label: 'Commentaires', icon: MessageCircle },
@@ -1107,6 +1191,199 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                                                     <Bar dataKey="actions" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {/* COMMUNITIES TAB */}
+                    {activeTab === 'communities' && (
+                        <motion.div
+                            key="communities"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold">Communautes X</h2>
+                                <button
+                                    onClick={() => setShowCommunityAddModal(true)}
+                                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Ajouter une communaute
+                                </button>
+                            </div>
+
+                            <p className="text-slate-400 text-sm mb-4">
+                                Ajoutez les liens des communautes X auxquelles vous etes inscrit. Configurez les actions automatiques pour chaque communaute.
+                            </p>
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-3 gap-3 mb-6">
+                                <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-3 text-center">
+                                    <Users className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{communities.length}</p>
+                                    <p className="text-xs text-slate-400">Communautes</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-xl p-3 text-center">
+                                    <CheckCircle className="w-5 h-5 text-green-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{communities.filter(c => c.isActive).length}</p>
+                                    <p className="text-xs text-slate-400">Actives</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-slate-600/20 to-slate-800/20 border border-slate-500/30 rounded-xl p-3 text-center">
+                                    <XCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{communities.filter(c => !c.isActive).length}</p>
+                                    <p className="text-xs text-slate-400">Inactives</p>
+                                </div>
+                            </div>
+
+                            {/* Community list */}
+                            <div className="space-y-3">
+                                {communities.map((community) => (
+                                    <div key={community.id} className={`bg-slate-800 rounded-lg border p-4 ${community.isActive ? 'border-slate-700' : 'border-slate-800 opacity-60'}`}>
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <h3 className="font-semibold text-lg">{community.name}</h3>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${community.isActive ? 'bg-green-900/50 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
+                                                        {community.isActive ? 'Active' : 'Inactive'}
+                                                    </span>
+                                                </div>
+                                                <a href={community.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 hover:underline text-sm">
+                                                    {community.url}
+                                                </a>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => toggleCommunity(community.id, community.isActive)}
+                                                    className={`px-3 py-1 rounded text-xs ${community.isActive ? 'bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600/30' : 'bg-green-600/20 text-green-400 hover:bg-green-600/30'}`}
+                                                >
+                                                    {community.isActive ? 'Desactiver' : 'Activer'}
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteCommunity(community.id)}
+                                                    className="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Action toggles */}
+                                        <div className="flex gap-2 flex-wrap">
+                                            {[
+                                                { action: 'comment', label: 'Commenter', icon: '\uD83D\uDCAC' },
+                                                { action: 'retweet', label: 'Retweeter', icon: '\uD83D\uDD01' },
+                                                { action: 'post', label: 'Poster', icon: '\uD83D\uDCDD' },
+                                                { action: 'like', label: 'Liker', icon: '\u2764\uFE0F' },
+                                            ].map(({ action, label, icon }) => (
+                                                <button
+                                                    key={action}
+                                                    onClick={() => toggleCommunityAction(community.id, community.actions, action)}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all ${
+                                                        community.actions.includes(action)
+                                                            ? 'bg-blue-600/30 text-blue-300 border border-blue-500/50'
+                                                            : 'bg-slate-700/50 text-slate-500 border border-slate-600/30'
+                                                    }`}
+                                                >
+                                                    <span>{icon}</span>
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {communities.length === 0 && (
+                                <div className="text-center py-12 text-slate-500">
+                                    <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                    <p>Aucune communaute ajoutee</p>
+                                    <p className="text-sm mt-2">Ajoutez les liens des communautes X pour automatiser les actions</p>
+                                </div>
+                            )}
+
+                            {/* Add Community Modal */}
+                            {showCommunityAddModal && (
+                                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                                    <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md border border-slate-700">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="text-xl font-bold">Ajouter une communaute</h3>
+                                            <button onClick={() => setShowCommunityAddModal(false)} className="text-slate-400 hover:text-white">
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm text-slate-400 mb-1">Nom de la communaute</label>
+                                                <input
+                                                    type="text"
+                                                    value={newCommunity.name}
+                                                    onChange={(e) => setNewCommunity(prev => ({ ...prev, name: e.target.value }))}
+                                                    placeholder="ex: Crypto FR"
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm text-slate-400 mb-1">Lien de la communaute X</label>
+                                                <input
+                                                    type="text"
+                                                    value={newCommunity.url}
+                                                    onChange={(e) => setNewCommunity(prev => ({ ...prev, url: e.target.value }))}
+                                                    placeholder="https://x.com/i/communities/..."
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm text-slate-400 mb-2">Actions automatiques</label>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {[
+                                                        { action: 'comment', label: 'Commenter' },
+                                                        { action: 'retweet', label: 'Retweeter' },
+                                                        { action: 'post', label: 'Poster' },
+                                                        { action: 'like', label: 'Liker' },
+                                                    ].map(({ action, label }) => (
+                                                        <button
+                                                            key={action}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setNewCommunity(prev => ({
+                                                                    ...prev,
+                                                                    actions: prev.actions.includes(action)
+                                                                        ? prev.actions.filter(a => a !== action)
+                                                                        : [...prev.actions, action]
+                                                                }));
+                                                            }}
+                                                            className={`px-3 py-1.5 rounded-lg text-sm ${
+                                                                newCommunity.actions.includes(action)
+                                                                    ? 'bg-blue-600 text-white'
+                                                                    : 'bg-slate-700 text-slate-400'
+                                                            }`}
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3 mt-6">
+                                            <button
+                                                onClick={() => setShowCommunityAddModal(false)}
+                                                className="flex-1 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg"
+                                            >
+                                                Annuler
+                                            </button>
+                                            <button
+                                                onClick={createCommunity}
+                                                className="flex-1 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg"
+                                            >
+                                                Ajouter
+                                            </button>
                                         </div>
                                     </div>
                                 </div>

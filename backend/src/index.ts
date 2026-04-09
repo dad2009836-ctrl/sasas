@@ -811,6 +811,80 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 });
 
 
+// --- COMMUNITIES API ---
+
+/**
+ * Get all communities
+ */
+app.get('/api/communities', async (req, res) => {
+    try {
+        const communities = await prisma.community.findMany({
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(communities);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Create a community
+ */
+app.post('/api/communities', async (req, res) => {
+    const { name, url, actions } = req.body;
+
+    try {
+        const community = await prisma.community.create({
+            data: {
+                name,
+                url,
+                actions: actions || ['comment', 'retweet'],
+                userId: 'temp-user-id'
+            }
+        });
+        res.status(201).json(community);
+    } catch (error: any) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * Update a community
+ */
+app.patch('/api/communities/:id', async (req, res) => {
+    const { id } = req.params;
+    const { name, url, actions, isActive } = req.body;
+
+    try {
+        const community = await prisma.community.update({
+            where: { id },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(url !== undefined && { url }),
+                ...(actions !== undefined && { actions }),
+                ...(isActive !== undefined && { isActive })
+            }
+        });
+        res.json(community);
+    } catch (error: any) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * Delete a community
+ */
+app.delete('/api/communities/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await prisma.community.delete({ where: { id } });
+        res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 /**
  * Get unified publication history (posts + comments)
  */

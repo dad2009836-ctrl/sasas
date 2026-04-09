@@ -20,6 +20,7 @@ model User {
   accounts        IGAccount[]
   notifications   Notification[]
   twitterAccounts TwitterAccount[]
+  communities     Community[]
 }
 
 model IGAccount {
@@ -211,6 +212,18 @@ model Notification {
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model Community {
+  id          String         @id @default(uuid())
+  name        String
+  url         String
+  actions     String[]       // e.g. ["comment", "retweet", "post"]
+  isActive    Boolean        @default(true)
+  userId      String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User           @relation(fields: [userId], references: [id])
 }
 
 enum AccountStatus {
