@@ -1128,7 +1128,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                                     className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
                                 >
                                     <Activity className="w-4 h-4" />
-                                    Rafra&icirc;chir
+                                    Rafraichir
                                 </button>
                             </div>
 
@@ -1159,12 +1159,12 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                                 <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-800/20 border border-emerald-500/30 rounded-xl p-3 text-center">
                                     <Share2 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
                                     <p className="text-lg font-bold">{publicationHistory.filter(h => h.type === 'post').length}</p>
-                                    <p className="text-xs text-slate-400">Posts publi&eacute;s</p>
+                                    <p className="text-xs text-slate-400">Posts publies</p>
                                 </div>
                                 <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-3 text-center">
                                     <MessageCircle className="w-5 h-5 text-blue-400 mx-auto mb-1" />
                                     <p className="text-lg font-bold">{publicationHistory.filter(h => h.type === 'comment').length}</p>
-                                    <p className="text-xs text-slate-400">Commentaires post&eacute;s</p>
+                                    <p className="text-xs text-slate-400">Commentaires postes</p>
                                 </div>
                                 <div className="bg-gradient-to-br from-slate-600/20 to-slate-800/20 border border-slate-500/30 rounded-xl p-3 text-center">
                                     <Clock className="w-5 h-5 text-slate-400 mx-auto mb-1" />
@@ -1183,7 +1183,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                                                 <th className="px-4 py-3">Compte</th>
                                                 <th className="px-4 py-3">Contenu</th>
                                                 <th className="px-4 py-3">Lien</th>
-                                                <th className="px-4 py-3">Date &amp; Heure</th>
+                                                <th className="px-4 py-3">Date / Heure</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700">
@@ -1247,8 +1247,8 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                             {publicationHistory.length === 0 && (
                                 <div className="text-center py-12 text-slate-500">
                                     <Share2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                                    <p>Aucune publication dans l&apos;historique</p>
-                                    <p className="text-sm mt-2">Les posts publi&eacute;s et les commentaires post&eacute;s appara&icirc;tront ici avec leur heure et lien</p>
+                                    <p>Aucune publication dans l{"'"}historique</p>
+                                    <p className="text-sm mt-2">Les posts publies et les commentaires postes apparaitront ici avec leur heure et lien</p>
                                 </div>
                             )}
                         </motion.div>
