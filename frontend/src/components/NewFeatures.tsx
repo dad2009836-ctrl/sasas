@@ -103,6 +103,21 @@ interface Activity {
     };
 }
 
+interface PublicationHistoryEntry {
+    id: string;
+    type: 'post' | 'comment';
+    content: string | null;
+    postUrl: string | null;
+    comment: string | null;
+    publishedAt: string;
+    accountUsername: string;
+    accountId: string;
+    likes: number;
+    retweets: number;
+    replies: number;
+    impressions: number;
+}
+
 interface ActionHistoryEntry {
     id: string;
     action: string;
@@ -149,13 +164,15 @@ interface NewFeaturesProps {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4005';
 
 export default function NewFeatures({ accounts, selectedAccount: externalSelectedAccount, profileForm: externalProfileForm, onProfileFormChange }: NewFeaturesProps) {
-    const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'history' | 'comments' | 'notifications' | 'stats'>('groups');
+    const [activeTab, setActiveTab] = useState<'groups' | 'templates' | 'activities' | 'history' | 'publications' | 'comments' | 'notifications' | 'stats'>('groups');
     
     // Data states
     const [groups, setGroups] = useState<Group[]>([]);
     const [templates, setTemplates] = useState<Template[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [actionHistory, setActionHistory] = useState<ActionHistoryEntry[]>([]);
+    const [publicationHistory, setPublicationHistory] = useState<PublicationHistoryEntry[]>([]);
+    const [pubFilter, setPubFilter] = useState<'all' | 'post' | 'comment'>('all');
     const [historyFilter, setHistoryFilter] = useState<string>('all');
     const [commentRequests, setCommentRequests] = useState<CommentRequest[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -384,6 +401,9 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                     const activitiesData = await activitiesRes.json();
                     setActivities(activitiesData);
                     break;
+                case 'publications':
+                    fetchPublicationHistory();
+                    break;
                 case 'comments':
                     const commentsRes = await fetch(`${API_URL}/api/comment-requests`);
                     const commentsData = await commentsRes.json();
@@ -589,11 +609,27 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         }
     };
 
+    const fetchPublicationHistory = async () => {
+        try {
+            const params = new URLSearchParams();
+            if (pubFilter !== 'all') params.append('type', pubFilter);
+            params.append('limit', '200');
+            const res = await fetch(`${API_URL}/api/publication-history?${params.toString()}`);
+            const data = await res.json();
+            setPublicationHistory(data);
+        } catch (error) {
+            console.error('Error fetching publication history:', error);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'history') {
             fetchActionHistory();
         }
-    }, [activeTab, historyFilter]);
+        if (activeTab === 'publications') {
+            fetchPublicationHistory();
+        }
+    }, [activeTab, historyFilter, pubFilter]);
 
     const getActionIcon = (action: string) => {
         switch (action) {
@@ -620,6 +656,7 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
         { id: 'groups', label: 'Groupes', icon: FolderTree },
         { id: 'templates', label: 'Templates', icon: FileText },
         { id: 'stats', label: 'Statistiques', icon: BarChart3 },
+        { id: 'publications', label: 'Publications', icon: Share2 },
         { id: 'history', label: 'Historique', icon: Eye },
         { id: 'activities', label: 'Activités', icon: Clock },
         { id: 'comments', label: 'Commentaires', icon: MessageCircle },
@@ -1071,6 +1108,147 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
                                             </ResponsiveContainer>
                                         </div>
                                     </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {/* PUBLICATIONS TAB */}
+                    {activeTab === 'publications' && (
+                        <motion.div
+                            key="publications"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold">Historique des Publications</h2>
+                                <button
+                                    onClick={fetchPublicationHistory}
+                                    className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center gap-2 text-sm"
+                                >
+                                    <Activity className="w-4 h-4" />
+                                    Rafra&icirc;chir
+                                </button>
+                            </div>
+
+                            {/* Filter buttons */}
+                            <div className="flex gap-2 mb-4 flex-wrap">
+                                {[
+                                    { value: 'all' as const, label: 'Tout', icon: Eye },
+                                    { value: 'post' as const, label: 'Posts publi\u00e9s', icon: Share2 },
+                                    { value: 'comment' as const, label: 'Commentaires post\u00e9s', icon: MessageCircle },
+                                ].map(filter => (
+                                    <button
+                                        key={filter.value}
+                                        onClick={() => setPubFilter(filter.value)}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                                            pubFilter === filter.value
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                        }`}
+                                    >
+                                        <filter.icon className="w-3.5 h-3.5" />
+                                        {filter.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Stats summary */}
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                                <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-800/20 border border-emerald-500/30 rounded-xl p-3 text-center">
+                                    <Share2 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{publicationHistory.filter(h => h.type === 'post').length}</p>
+                                    <p className="text-xs text-slate-400">Posts publi&eacute;s</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-xl p-3 text-center">
+                                    <MessageCircle className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{publicationHistory.filter(h => h.type === 'comment').length}</p>
+                                    <p className="text-xs text-slate-400">Commentaires post&eacute;s</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-slate-600/20 to-slate-800/20 border border-slate-500/30 rounded-xl p-3 text-center">
+                                    <Clock className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                                    <p className="text-lg font-bold">{publicationHistory.length}</p>
+                                    <p className="text-xs text-slate-400">Total</p>
+                                </div>
+                            </div>
+
+                            {/* Publications list */}
+                            <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="text-xs uppercase text-slate-400 bg-slate-800/50 border-b border-slate-700">
+                                            <tr>
+                                                <th className="px-4 py-3">Type</th>
+                                                <th className="px-4 py-3">Compte</th>
+                                                <th className="px-4 py-3">Contenu</th>
+                                                <th className="px-4 py-3">Lien</th>
+                                                <th className="px-4 py-3">Date &amp; Heure</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                            {publicationHistory.map((entry) => (
+                                                <tr key={entry.id} className="hover:bg-slate-700/50 transition-colors">
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            {entry.type === 'post' ? (
+                                                                <span className="flex items-center gap-1.5 text-emerald-400">
+                                                                    <Share2 className="w-4 h-4" />
+                                                                    <span className="font-medium text-xs bg-emerald-900/50 px-2 py-0.5 rounded">POST</span>
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1.5 text-blue-400">
+                                                                    <MessageCircle className="w-4 h-4" />
+                                                                    <span className="font-medium text-xs bg-blue-900/50 px-2 py-0.5 rounded">COMMENT</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className="text-slate-300">@{entry.accountUsername}</span>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className="text-slate-300 text-xs max-w-[250px] truncate block" title={entry.content || ''}>
+                                                            {entry.content ? (entry.content.length > 80 ? entry.content.substring(0, 80) + '...' : entry.content) : '—'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {entry.postUrl ? (
+                                                            <a
+                                                                href={entry.postUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-blue-400 hover:text-blue-300 hover:underline truncate block max-w-[200px] text-xs"
+                                                                title={entry.postUrl}
+                                                            >
+                                                                {entry.postUrl.replace('https://x.com/', '')}
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-slate-600 text-xs">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                                                        {new Date(entry.publishedAt).toLocaleString('fr-FR', {
+                                                            day: '2-digit',
+                                                            month: '2-digit',
+                                                            year: 'numeric',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                            second: '2-digit'
+                                                        })}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {publicationHistory.length === 0 && (
+                                <div className="text-center py-12 text-slate-500">
+                                    <Share2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                    <p>Aucune publication dans l&apos;historique</p>
+                                    <p className="text-sm mt-2">Les posts publi&eacute;s et les commentaires post&eacute;s appara&icirc;tront ici avec leur heure et lien</p>
                                 </div>
                             )}
                         </motion.div>

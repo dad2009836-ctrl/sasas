@@ -811,6 +811,81 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 });
 
 
+/**
+ * Get unified publication history (posts + comments)
+ */
+app.get('/api/publication-history', async (req, res) => {
+    const { type, accountId, limit = 200 } = req.query;
+
+    try {
+        let posts: any[] = [];
+        let comments: any[] = [];
+
+        // Get published posts
+        if (!type || type === 'all' || type === 'post') {
+            posts = (await prisma.twitterPost.findMany({
+                where: {
+                    status: 'PUBLISHED',
+                    isComment: false,
+                    ...(accountId && { accountId: accountId as string })
+                },
+                include: { account: { select: { username: true } } },
+                orderBy: { publishedAt: 'desc' },
+                take: Number(limit)
+            })).map(p => ({
+                id: p.id,
+                type: 'post' as const,
+                content: p.content,
+                postUrl: null,
+                comment: null,
+                publishedAt: p.publishedAt || p.createdAt,
+                accountUsername: p.account.username,
+                accountId: p.accountId,
+                likes: p.likes,
+                retweets: p.retweets,
+                replies: p.replies,
+                impressions: p.impressions
+            }));
+        }
+
+        // Get comment actions from activity log
+        if (!type || type === 'all' || type === 'comment') {
+            comments = (await prisma.activityLog.findMany({
+                where: {
+                    action: 'comment',
+                    postUrl: { not: null },
+                    ...(accountId && { accountId: accountId as string })
+                },
+                include: { account: { select: { username: true } } },
+                orderBy: { timestamp: 'desc' },
+                take: Number(limit)
+            })).map(a => ({
+                id: a.id,
+                type: 'comment' as const,
+                content: a.comment || a.message,
+                postUrl: a.postUrl,
+                comment: a.comment,
+                publishedAt: a.timestamp,
+                accountUsername: a.account?.username || 'N/A',
+                accountId: a.accountId,
+                likes: 0,
+                retweets: 0,
+                replies: 0,
+                impressions: 0
+            }));
+        }
+
+        // Merge and sort by date
+        const history = [...posts, ...comments]
+            .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+            .slice(0, Number(limit));
+
+        res.json(history);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- SOCKET.IO LOGIC ---
 io.on('connection', (socket) => {
     console.log('🔌 Client connected:', socket.id);
