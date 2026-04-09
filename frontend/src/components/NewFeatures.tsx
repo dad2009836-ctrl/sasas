@@ -616,9 +616,10 @@ export default function NewFeatures({ accounts, selectedAccount: externalSelecte
             params.append('limit', '200');
             const res = await fetch(`${API_URL}/api/publication-history?${params.toString()}`);
             const data = await res.json();
-            setPublicationHistory(data);
+            setPublicationHistory(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error fetching publication history:', error);
+            setPublicationHistory([]);
         }
     };
 
