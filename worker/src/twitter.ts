@@ -1089,10 +1089,11 @@ const AUTO_TWEETS = [
     "Just discovered the horniest corner of Twitter 😍🍆💦",
 ];
 
-async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: any) {
+async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: any, username?: string): Promise<Array<{ postUrl: string; action: string }>> {
     const tweetContent = config?.content || AUTO_TWEETS[randomRange(0, AUTO_TWEETS.length - 1)];
     const mediaUrls: string[] = config?.mediaUrls || [];
     emitLog("📝 Auto-Post : Publication d'un tweet...");
+    const actionHistory: Array<{ postUrl: string; action: string }> = [];
 
     await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
     await sleep(randomRange(4000, 7000));
@@ -1119,7 +1120,7 @@ async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: an
 
         if (!composed) {
             emitLog("⚠️ Bouton de composition introuvable.");
-            return;
+            return actionHistory;
         }
 
         await sleep(randomRange(1200, 2500));
@@ -1140,6 +1141,33 @@ async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: an
         if (await tweetBtn.count() > 0) {
             await humanClick(page, tweetBtn);
             emitLog("✅ Tweet publié avec succès !");
+
+            // Wait for tweet to be published and try to capture the post URL
+            await sleep(randomRange(3000, 5000));
+
+            if (username) {
+                try {
+                    // Navigate to user profile to get the latest tweet URL
+                    await page.goto(`https://x.com/${username}`, { waitUntil: 'domcontentloaded' });
+                    await sleep(randomRange(3000, 5000));
+
+                    const postUrl = await page.evaluate(() => {
+                        const articles = document.querySelectorAll('article');
+                        if (articles.length > 0) {
+                            const timeLink = articles[0].querySelector('a[href*="/status/"]');
+                            if (timeLink) return 'https://x.com' + timeLink.getAttribute('href');
+                        }
+                        return '';
+                    }).catch(() => '');
+
+                    if (postUrl) {
+                        actionHistory.push({ postUrl, action: 'post' });
+                        emitLog(`📎 Lien du tweet publié: ${postUrl}`);
+                    }
+                } catch {
+                    emitLog("⚠️ Impossible de récupérer le lien du tweet publié");
+                }
+            }
         } else {
             emitLog("⚠️ Bouton de publication introuvable.");
         }
@@ -1147,12 +1175,14 @@ async function doAutoPost(page: Page, emitLog: (msg: string) => void, config: an
         emitLog(`❌ Erreur lors de la publication: ${e.message}`);
     }
     await sleep(3000);
+    return actionHistory;
 }
 
 // ─── Scheduled Post ───────────────────────────────────────────────────────────
 
-async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postId: string) {
+async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postId: string): Promise<Array<{ postUrl: string; action: string }>> {
     emitLog("📅 Publication planifiée...");
+    const actionHistory: Array<{ postUrl: string; action: string }> = [];
     
     try {
         // Fetch post from database
@@ -1163,12 +1193,12 @@ async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postI
 
         if (!post) {
             emitLog("❌ Post introuvable en base de données");
-            return;
+            return actionHistory;
         }
 
         if (!post.content) {
             emitLog("❌ Post sans contenu");
-            return;
+            return actionHistory;
         }
 
         emitLog(`📝 Contenu: "${post.content.substring(0, 50)}..."`);
@@ -1201,7 +1231,7 @@ async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postI
                 where: { id: postId },
                 data: { status: 'FAILED' }
             });
-            return;
+            return actionHistory;
         }
 
         await sleep(randomRange(1000, 2000));
@@ -1257,7 +1287,36 @@ async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postI
                 message: `📝 Tweet publié: "${post.content.substring(0, 50)}..."`
             });
 
+            // Wait and try to capture the published tweet URL
             await sleep(randomRange(3000, 5000));
+
+            try {
+                // Navigate to user profile to get the latest tweet URL
+                await page.goto(`https://x.com/${post.account.username}`, { waitUntil: 'domcontentloaded' });
+                await sleep(randomRange(3000, 5000));
+
+                const postUrl = await page.evaluate(() => {
+                    const articles = document.querySelectorAll('article');
+                    if (articles.length > 0) {
+                        const timeLink = articles[0].querySelector('a[href*="/status/"]');
+                        if (timeLink) return 'https://x.com' + timeLink.getAttribute('href');
+                    }
+                    return '';
+                }).catch(() => '');
+
+                if (postUrl) {
+                    actionHistory.push({ postUrl, action: 'scheduled_post' });
+                    emitLog(`📎 Lien du tweet planifié publié: ${postUrl}`);
+
+                    // Also save the postUrl to the TwitterPost record
+                    await prisma.twitterPost.update({
+                        where: { id: postId },
+                        data: { postUrl: postUrl }
+                    }).catch(() => {});
+                }
+            } catch {
+                emitLog("⚠️ Impossible de récupérer le lien du tweet publié");
+            }
         } else {
             emitLog("❌ Bouton Tweet introuvable");
             await prisma.twitterPost.update({
@@ -1274,6 +1333,7 @@ async function doScheduledPost(page: Page, emitLog: (msg: string) => void, postI
             });
         } catch {}
     }
+    return actionHistory;
 }
 
 // ─── Setup Profile ────────────────────────────────────────────────────────────
@@ -1492,21 +1552,21 @@ export const twitterWorkerHandler = async (job: any) => {
                 actionHistory = await doAutoComment(page, emitLog, config);
                 break;
             case 'autoPost':
-                await doAutoPost(page, emitLog, config);
+                actionHistory = await doAutoPost(page, emitLog, config, username);
                 break;
             case 'post':
                 // Scheduled post from queue
                 if (config?.postId) {
-                    await doScheduledPost(page, emitLog, config.postId);
+                    actionHistory = await doScheduledPost(page, emitLog, config.postId);
                 } else {
-                    await doAutoPost(page, emitLog, config);
+                    actionHistory = await doAutoPost(page, emitLog, config, username);
                 }
                 break;
             case 'spamComments':
                 actionHistory = await doAutoComment(page, emitLog, { count: config?.count || 5 });
                 break;
             case 'postCommunity':
-                await doAutoPost(page, emitLog, config);
+                actionHistory = await doAutoPost(page, emitLog, config, username);
                 break;
             default:
                 emitLog(`⚠️ Action inconnue : ${action}`);
